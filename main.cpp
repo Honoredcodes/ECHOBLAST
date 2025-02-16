@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <set>
 #include <sstream>
 #include <string>
@@ -9,6 +10,15 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+
+template <typename AnyTypeStruct>
+class DataStructure {
+ public:
+  void CreateNodeChain(AnyTypeStruct objectstruct) {}
+  void insertNodeChain(AnyTypeStruct objectstruct) {}
+  void RemoveNodeChain(AnyTypeStruct objectstruct) {}
+  void CountNodeChain(AnyTypeStruct objectstruct) {}
+};
 
 class GlobalMethodClass {
  public:
@@ -42,13 +52,24 @@ class GlobalMethodClass {
     }
     return FileVector;
   }
+
+  // #: 3
+  template <typename AnyData>
+  AnyData GetRandomDataFromVector(const std::vector<AnyData>& param) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, param.size() - 1);
+    return param[dis(gen)];
+  }
 };
 
 class MainProgram {
   struct MailDataSet {
     std::vector<std::string> MailDataset;
     struct SMTPStruct {
-      std::string servername, port, username, password;
+      int port;
+      std::string servername, username, password;
+      SMTPStruct* next;
     };
   };
 
@@ -68,7 +89,8 @@ class MainProgram {
   }
 
   // #: 1
-  void EmailSender(bool useHTML, bool useAttachment, std::string& filename) {}
+  void EmailSender(bool useHTML, bool useAttachment, std::string& recipient) {
+  }
 
   // #: 2
   void EmailSmsSender(std::string& filename) {}
