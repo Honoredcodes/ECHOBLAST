@@ -1,4 +1,5 @@
 #include <curl/curl.h>
+#include <json/json.h>
 
 #include <cctype>
 #include <chrono>
@@ -10,6 +11,7 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <string>
@@ -27,6 +29,26 @@ size_t writeCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   ((std::string*)userp)->append((char*)contents, size * nmemb);
   return size * nmemb;
 }
+size_t readCallback(void* ptr, size_t size, size_t nmemb, void* userdata) {
+  std::string* data = static_cast<std::string*>(userdata);
+  if (data->empty()) return 0;  // No more data to send
+
+  size_t toCopy = std::min(size * nmemb, data->size());
+  memcpy(ptr, data->data(), toCopy);
+  data->erase(0, toCopy);  // Remove sent data
+  return toCopy;
+}
+// class CurlHandle {
+//  private:
+//   CURL* curl;
+
+//  public:
+//   CurlHandle() : curl(curl_easy_init()) {}
+//   ~CurlHandle() {
+//     if (curl) curl_easy_cleanup(curl);
+//   }
+//   CURL* get() { return curl; }
+// };
 
 class GlobalMethodClass {
  public:
@@ -35,7 +57,7 @@ class GlobalMethodClass {
     static std::set<std::string> createdFolders;
     std::string fullPath;
     if (path.empty()) {
-      fullPath = fs::current_path().string() + "/" + folderName;
+      fullPath = "./" + folderName;
     } else {
       fullPath = path + "/" + folderName;
     }
@@ -57,13 +79,10 @@ class GlobalMethodClass {
   }
 
   // #: 2
-  bool ReadFileToVector(std::vector<std::string> FileVector, const std::string& filepath) {
-    std::ifstream FileData(filepath);
+  bool ReadFileToVector(std::vector<std::string>& FileVector, const std::string& filepath) {
+    std::fstream FileData(filepath, std::ios::in);
     if (!FileData) {
-      std::fstream FileData(filepath, std::ios::out);
-      FileData.close();
-      std::cout << "Path to " << filepath << " not found \n"
-                << "Path created, now try again.\n";
+      std::cerr << "Program Failed To Access " << filepath << std::endl;
       return false;
     }
     std::string line;
@@ -72,31 +91,30 @@ class GlobalMethodClass {
         FileVector.emplace_back(std::move(line));
       }
     }
-    return true;
+    FileData.close();
+    return !FileVector.empty();
   }
 
   // #: 3
   std::string GetRandomDataFromVector(const std::vector<std::string>& param) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    static std::mt19937 gen(std::random_device{}());  // Static generator
     std::uniform_int_distribution<> dis(0, param.size() - 1);
     return param[dis(gen)];
   }
 
   // #: 4
   bool GetAndSetSMTP(std::vector<std::string>& Vector, std::string& CurrentSmtp, std::string& servername, int& port, std::string& username, std::string& password) {
-    int VectorSize = Vector.size();
-    if (VectorSize <= 0) {
+    if (Vector.empty()) {
       return false;
     }
-    const std::string SMTP = Vector[0];
+    const std::string SMTP = CurrentSmtp = Vector[0];
     std::stringstream ss(SMTP);
     std::getline(ss, servername, '|');
     ss >> port;
     ss.ignore();
     std::getline(ss, username, '|');
     std::getline(ss, password);
-    for (int i = 0; i < VectorSize - 1; i++) {
+    for (int i = 0; i < Vector.size() - 1; i++) {
       Vector[i] = Vector[i + 1];
     }
     return true;
@@ -269,23 +287,51 @@ class GlobalMethodClass {
   }
 
   // #: 12
-  void CreateSMSDirectories(std::string& SMSDataDirectory, std::string& SMSGateWay, std::string& SMSAssets, std::string& Junks) {
-    SMSDataDirectory = MakeAndGetDirectory("", "SMSData");
-    SMSGateWay = MakeAndGetDirectory(SMSDataDirectory, "SMSGateWay");
-    SMSAssets = MakeAndGetDirectory(SMSGateWay, "SMSAssets");
-    Junks = MakeAndGetDirectory(SMSGateWay, "Junks");
+  bool CreateProgramDirectories(std::string BaseProgramDirectory, std::string& ChildProgramDirectory, std::string& ProgramAttributeDirectory, std::string& Junks) {
+    ChildProgramDirectory = MakeAndGetDirectory(BaseProgramDirectory, ChildProgramDirectory);
+    ProgramAttributeDirectory = MakeAndGetDirectory(ChildProgramDirectory, ProgramAttributeDirectory);
+    Junks = MakeAndGetDirectory(ChildProgramDirectory, Junks);
+    return (!BaseProgramDirectory.empty() || !ChildProgramDirectory.empty() || !ProgramAttributeDirectory.empty() || !Junks.empty()) ? true : false;
   }
 
   // #: 13
-  void EmailSuccessMessage(std::string& sendername, std::string& subject, std::string& lead) {
-    std::cout << "=================================> ECHOBLAST EMAIL SENDER <================================="
-              << "SENDER NAME: " << sendername << std::endl
-              << "SUBJECT: " << subject << std::endl
-              << "Email Successfully Sent To: " << lead << std::endl
-              << "=================================> ECHOBLAST EMAIL SENDER <=================================\n\n";
+  void CreateProgramAttributeFiles(std::string& ProgramAttributeDirectory, std::string& Junks, std::vector<std::string>& ProgramAttributeVector) {
+    std::fstream FileAccess;
+    for (const auto& file : ProgramAttributeVector) {
+      std::string filePath = (file == "failed.txt" || file == "deadsmtp.txt") ? (Junks + "/" + file) : (ProgramAttributeDirectory + "/" + file);
+      FileAccess.open(filePath, std::ios::app);
+      if (!FileAccess) {
+        std::cerr << "Failed to create or open file: " << filePath << std::endl;
+      }
+      FileAccess.close();
+    }
   }
 
   // #: 14
+  bool CreateSMSAttributeFiles(std::string& GatewaySenderDirectory, std::vector<std::string>& FilesVector) {
+    std::fstream FileAccess;
+    for (const auto& file : FilesVector) {
+      std::string filePath = GatewaySenderDirectory + "/" + file;
+      FileAccess.open(filePath, std::ios::app);
+      if (!FileAccess) {
+        std::cerr << "Failed to create " << file << std::endl;
+        return false;
+      }
+      FileAccess.close();
+    }
+    return true;
+  }
+
+  // #: 15
+  void EmailSuccessMessage(std::string& sendername, std::string& subject, std::string& lead) {
+    std::cout << "=================================>   EMAIL SENT SUCCESSFUL  <=================================\n"
+              << "> SENDER NAME: " << sendername << std::endl
+              << "> SUBJECT: " << subject << std::endl
+              << "> Email Successfully Sent To: " << lead << std::endl
+              << "=================================>  ECHOBLAST EMAIL SENDER  <=================================\n\n";
+  }
+
+  // #: 16
   void SMSSuccessMessage(std::string& sendername, std::string& lead) {
     std::cout << "=================================> ECHOBLAST SMS SENDER <================================="
               << "SENDER NAME: " << sendername << std::endl
@@ -293,7 +339,7 @@ class GlobalMethodClass {
               << "=================================> ECHOBLAST SMS SENDER <=================================\n\n";
   }
 
-  // #: 15
+  // #: 17
   std::string UrlEncode(const std::string& str) {
     std::ostringstream encoded;
     for (size_t i = 0; i < str.length(); ++i) {
@@ -309,7 +355,7 @@ class GlobalMethodClass {
 };
 
 class EmailSenderProgram : public GlobalMethodClass {
- public:
+ private:
   struct MailDataSet {
     std::vector<std::string> MailDataSetVector;
     struct SMTPAttribute {
@@ -318,92 +364,132 @@ class EmailSenderProgram : public GlobalMethodClass {
     };
   };
 
+ public:
   MailDataSet SMTPVectorObject, NameVectorObject, SubjectVectorObject;
   MailDataSet::SMTPAttribute SMTPAttributeObject;
-  std::string DataDirectory;
+  std::string EmailSenderPrograms = "Email Sender Programs";
 
   // Main Program class constructor
   EmailSenderProgram() {
-    DataDirectory = MakeAndGetDirectory("", "Data");
+    EmailSenderPrograms = MakeAndGetDirectory("", EmailSenderPrograms);
   }
 
-  void SetCurlForMail(CURL* curl, std::string servername, int port, std::string username, std::string password) {
-    servername += ":" + std::to_string(port);
-    curl_easy_setopt(curl, CURLOPT_URL, servername.c_str());
+  // EMAIL SENDER GLOBAL VARIABLES
+  std::string EmailProgramDirectory = "Email Sender";
+  std::string EmailDataDirectory = "Email Data";
+  std::string EmailJunkDirectory = "Junks";
+  std::vector<std::string> ProgramAttributeVector;
+
+  // EMAIL TO SMS SENDER GLOBAL VARIABLES
+  std::string SMSMailDirectory = "SMS Mail Sender";
+  std::string SMSMailDataDirectory = "SMS Mail Data";
+  std::string SMSMailJunkDirectory = "Junks";
+
+  // SMTP LIVE TESTER GLOBAL VARIABLES
+  std::string SMTPLiveTesterDirectory = "SMTP Live Tester";
+  std::string EmailExtractorDirectory = "Email Extractor";
+
+  bool PrepareEmailSenderDirectories() {
+    ProgramAttributeVector = {"smtps.txt", "sendername.txt", "subject.txt", "letter.txt", "leads.txt", "sent.txt", "failed.txt", "deadsmtp.txt"};
+    if (!CreateProgramDirectories(EmailSenderPrograms, EmailProgramDirectory, EmailDataDirectory, EmailJunkDirectory)) return false;
+    CreateProgramAttributeFiles(EmailDataDirectory, EmailJunkDirectory, ProgramAttributeVector);
+    return true;
+  }
+
+  bool PrepareEmailToSMSDirectories() {
+    ProgramAttributeVector = {"smtps.txt", "sendername.txt", "letter.txt", "leads.txt", "sent.txt", "failed.txt", "deadsmtp.txt"};
+    if (!CreateProgramDirectories(EmailSenderPrograms, SMSMailDirectory, SMSMailDataDirectory, SMSMailJunkDirectory)) return false;
+    CreateProgramAttributeFiles(SMSMailDataDirectory, SMSMailJunkDirectory, ProgramAttributeVector);
+    return true;
+  }
+
+  bool PrepareSMTPLiveTesterDirectories() {
+    ProgramAttributeVector = {"smtps.txt", "failedsmtps.txt"};
+    SMTPLiveTesterDirectory = MakeAndGetDirectory(EmailSenderPrograms, SMTPLiveTesterDirectory);
+    for (auto& file : ProgramAttributeVector) {
+      std::string filePath = fs::path(SMTPLiveTesterDirectory) / file;
+      std::fstream FileAccess(filePath, std::ios::app);
+      if (!FileAccess) {
+        std::cerr << "Failed to create " << file << std::endl;
+        return false;
+      }
+      FileAccess.close();
+    }
+    return true;
+  }
+
+  bool PrepareEmailExtractorDirectories() {
+    ProgramAttributeVector = {"rawfile.txt", "extracted.txt"};
+    EmailExtractorDirectory = MakeAndGetDirectory(EmailSenderPrograms, EmailExtractorDirectory);
+    for (auto& file : ProgramAttributeVector) {
+      std::string FilePath = fs::path(EmailExtractorDirectory) / file;
+      std::fstream FileAccess(FilePath, std::ios::out);
+      if (!FileAccess) {
+        std::cerr << "Failed to create " << file << std::endl;
+        return false;
+      }
+      FileAccess.close();
+    }
+    return true;
+  }
+
+  void SetCurlForMail(CURL*& curl, std::string servername, int port, std::string username, std::string password) {
+    curl_easy_setopt(curl, CURLOPT_URL, ("smtp://" + servername + ":" + std::to_string(port)).c_str());
     curl_easy_setopt(curl, CURLOPT_USERNAME, username.c_str());
     curl_easy_setopt(curl, CURLOPT_PASSWORD, password.c_str());
     curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_ALL);
   }
 
-  void MakeEmailBody(std::string EmailContentBody, bool useHTML, bool useAttachment, std::string boundary, std::string sendername, std::string subject, std::string letter, std::string lead, std::string AttachmentFilePath = "") {
-    if (useHTML) {
-      EmailContentBody = "From: " + sendername +
-                         "\r\n"
-                         "To: " +
-                         lead +
-                         "\r\n"
-                         "Subject: " +
-                         subject +
-                         "\r\n"
-                         "MIME-Version: 1.0\r\n"
-                         "Content-Type: multipart/mixed; boundary=\"" +
-                         boundary + "\"\r\n\r\n";
-      EmailContentBody += "--" + boundary + "\r\n";
-      EmailContentBody += "Content-Type: text/html; charset=UTF-8\r\n\r\n" + letter + "\r\n";
-    } else {
-      EmailContentBody = "From: " + sendername +
-                         "\r\n"
-                         "To: " +
-                         lead +
-                         "\r\n"
-                         "Subject: " +
-                         subject +
-                         "\r\n"
-                         "MIME-Version: 1.0\r\n"
-                         "Content-Type: multipart/mixed; boundary=\"" +
-                         boundary + "\"\r\n\r\n";
-      EmailContentBody += "--" + boundary + "\r\n";
-      EmailContentBody += "Content-Type: text/plain; charset=UTF-8\r\n\r\n" + letter + "\r\n";
+  void MakeEmailBody(std::string& EmailContentBody, bool useHTML, bool useAttachment, std::string boundary, std::string sendername, std::string username, std::string subject, std::string letter, std::string lead, std::string AttachmentFilePath = "") {
+    if (boundary.empty()) {
+      boundary = "----=_Part_001_" + std::to_string(time(nullptr));
     }
-    if (useAttachment) {
+    std::string fromHeader = "From: " + sendername + " <" + username + ">\r\n";
+    EmailContentBody = fromHeader;
+    EmailContentBody += "To: " + lead + "\r\n";
+    EmailContentBody += "Subject: " + subject + "\r\n";
+    EmailContentBody += "MIME-Version: 1.0\r\n";
+    EmailContentBody += "Content-Type: multipart/mixed; boundary=\"" + boundary + "\"\r\n\r\n";
+    EmailContentBody += "--" + boundary + "\r\n";
+    if (useHTML) {
+      EmailContentBody += "Content-Type: text/html; charset=UTF-8\r\n\r\n";
+    } else {
+      EmailContentBody += "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
+    }
+    EmailContentBody += letter + "\r\n";
+    if (useAttachment && !AttachmentFilePath.empty()) {
       std::string encodedFile = base64Encode(AttachmentFilePath);
+      std::string attachmentName = fs::path(AttachmentFilePath).filename().string();
       EmailContentBody += "--" + boundary + "\r\n";
-      EmailContentBody += "Content-Type: application/octet-stream; name=\"" + AttachmentFilePath + "\"\r\n";
-      EmailContentBody += "Content-Disposition: attachment; filename=\"" + AttachmentFilePath + "\"\r\n";
-      EmailContentBody += "Content-Transfer-Encoding: base64\r\n\r\n" + encodedFile + "\r\n";
+      EmailContentBody += "Content-Type: application/octet-stream; name=\"" + attachmentName + "\"\r\n";
+      EmailContentBody += "Content-Disposition: attachment; filename=\"" + attachmentName + "\"\r\n";
+      EmailContentBody += "Content-Transfer-Encoding: base64\r\n\r\n";
+      EmailContentBody += encodedFile + "\r\n";
     }
     EmailContentBody += "--" + boundary + "--\r\n";
   }
 
   // #: 1 Email Sender
-  bool EmailSender(bool useHTML, bool useAttachment, std::string LeadsFile) {
-    std::string EmailDirectory = MakeAndGetDirectory(DataDirectory, "EmailData");
-    std::string MailDataDirectory = MakeAndGetDirectory(EmailDirectory, "MailData");
-    std::string JunkDirectory = MakeAndGetDirectory(EmailDirectory, "Junks");
-    if (MailDataDirectory.empty()) {
-      std::cout << "Please create the list of file assets for EmailData\n"
-                << "smtp.txt, name.txt, subject.txt, letter.txt\n";
-      return false;
-    }
-    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, MailDataDirectory + "/smtp.txt") ||
-        !ReadFileToVector(NameVectorObject.MailDataSetVector, MailDataDirectory + "/name.txt") ||
-        !ReadFileToVector(SubjectVectorObject.MailDataSetVector, MailDataDirectory + "/subject.txt")) {
-      std::cout << "\033[2J\033[H";
-      std::cout << "Error: failed to read some file data\n"
-                << "Retry program again\n";
+  bool EmailSender(bool useHTML, bool useAttachment) {
+    int smtpAssignCounter = 0;
+    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "smtps.txt") ||
+        !ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt") ||
+        !ReadFileToVector(SubjectVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "subject.txt")) {
+      std::cerr << "Email Assets Files Cannot Be Empty \n";
       sleep(1);
       return false;
     }
 
-    std::string LeadFileDirectory = fs::path(MailDataDirectory) / LeadsFile;
-    std::string LetterFileDirectory = fs::path(MailDataDirectory) / "letter.txt";
-    std::string SentEmail = fs::path(MailDataDirectory) / "sent.txt";
-    std::string FailedLeadsFile = fs::path(JunkDirectory) / "failed.txt";
-    std::string DeadSMTPsFile = fs::path(JunkDirectory) / "deadsmtp.txt";
-    std::string AttachmentFilePath = MakeAndGetDirectory(MailDataDirectory, "Attachment");
+    std::string AttachmentFilePath;
+    std::string LeadFileDirectory = fs::path(EmailDataDirectory) / "leads.txt";
+    std::string LetterFileDirectory = fs::path(EmailDataDirectory) / "letter.txt";
+    std::string SentEmail = fs::path(EmailDataDirectory) / "sent.txt";
+    std::string FailedLeadsFile = fs::path(EmailJunkDirectory) / "failed.txt";
+    std::string DeadSMTPsFile = fs::path(EmailJunkDirectory) / "deadsmtp.txt";
     std::string EmailContentBody, AttachmentFileName, CurrentSmtp, boundary = "----=_Part_001_2345_67890";
     long responseCode;
     if (useAttachment) {
+      AttachmentFilePath = MakeAndGetDirectory(EmailDataDirectory, "Attachment");
       std::string tempstring;
       std::cout << "\033[2J\033[H";
       std::cout << "Provide Attachment filename with extension type (Example: filename.pdf): ";
@@ -411,7 +497,7 @@ class EmailSenderProgram : public GlobalMethodClass {
       AttachmentFileName = fs::path(AttachmentFilePath) / tempstring;
     }
     if (!GetAndSetSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
-      std::cout << "SMTP not found or finished....\n";
+      std::cout << "SMTP not found or exhuasted.\n";
       return false;
     }
     int SentCount = 0, errorCount = 0, &port = SMTPAttributeObject.port;
@@ -421,8 +507,7 @@ class EmailSenderProgram : public GlobalMethodClass {
     std::string sendername, subject, letter;
     std::vector<std::string> LeadsVector;
     if (!ReadFileToVector(LeadsVector, LeadFileDirectory)) {
-      std::cerr << "Error: failed to read " << LeadsFile << std::endl
-                << "Retry program again\n";
+      std::cerr << "Program Failed To Access " << LeadFileDirectory << std::endl;
       return false;
     }
     ReadFromFile(LetterFileDirectory, letter);
@@ -432,31 +517,33 @@ class EmailSenderProgram : public GlobalMethodClass {
     std::string response;
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
+    if (!curl) {
+      std::cerr << "Failed to initialize, please check network and try again." << std::endl;
+      return false;
+    }
     if (curl) {
       SetCurlForMail(curl, servername, port, username, password);
-
       std::cout << "\033[2J\033[H";
-      std::cout << "Email Sender Initialized...\n";
+      std::cout << "\t\t[EMAIL SENDER INITIALIZED]\n\n";
       sleep(1);
       for (auto& lead : LeadsVector) {
         sendername = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
         subject = GetRandomDataFromVector(SubjectVectorObject.MailDataSetVector);
-        MakeEmailBody(EmailContentBody, useHTML, useAttachment, boundary, sendername, subject, letter, lead, AttachmentFileName);
+        MakeEmailBody(EmailContentBody, useHTML, useAttachment, boundary, sendername, username, subject, letter, lead, AttachmentFileName);
         recipients_list = curl_slist_append(recipients_list, lead.c_str());
-        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, sendername.c_str());
         curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients_list);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, EmailContentBody.c_str());
-        curl_easy_setopt(curl, CURLOPT_READFUNCTION, writeCallback);
-        curl_easy_setopt(curl, CURLOPT_READDATA, &response);
+        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
+        curl_easy_setopt(curl, CURLOPT_READDATA, &EmailContentBody);
         curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
+        // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
 
         res = curl_easy_perform(curl);
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
         if (res == CURLE_OK && responseCode == 250) {
           WriteToFile(SentEmail, lead);
           EmailSuccessMessage(sendername, subject, lead);
-          curl_slist_free_all(recipients_list);
-          recipients_list = nullptr;
           SentCount++;
           errorCount = 0;
         } else {
@@ -466,12 +553,13 @@ class EmailSenderProgram : public GlobalMethodClass {
           } else if (errorCount >= 4 && errorCount <= 6) {
             WriteToFile(DeadSMTPsFile, CurrentSmtp);
             if (!GetAndSetSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
-              std::cout << "SMTP not found or finished....\n"
+              std::cout << "SMTP not found or finished..\n"
                         << "Total successfully sent email to " << SentCount << " Leads\n";
               curl_slist_free_all(recipients_list);
               recipients_list = nullptr;
               LeadFinalCleanUp(LeadFileDirectory, SentEmail, FailedLeadsFile);
-              break;
+              sleep(2);
+              return true;
             }
 
             SetCurlForMail(curl, servername, port, username, password);
@@ -489,37 +577,35 @@ class EmailSenderProgram : public GlobalMethodClass {
             errorCount = 0;
           }
         }
+        curl_slist_free_all(recipients_list);
+        recipients_list = nullptr;
       }
       std::cout << "Total successfully sent email to " << SentCount << " Leads \n";
       curl_easy_cleanup(curl);
     }
     curl_global_cleanup();
     LeadFinalCleanUp(LeadFileDirectory, SentEmail, FailedLeadsFile);
+    sleep(2);
     return true;
   }
 
   // #: 2 Email to SMS Sender
   bool EmailToSMSSender(std::string& LeadsFile) {
-    std::string EmailDirectory = MakeAndGetDirectory(DataDirectory, "EmailSMSData");
-    std::string MailDataDirectory = MakeAndGetDirectory(EmailDirectory, "MailData");
-    std::string JunkDirectory = MakeAndGetDirectory(EmailDirectory, "Junks");
-    if (MailDataDirectory.empty()) {
-      std::cout << "Please create the list of file assets for EmailSMSData\n"
-                << "smtp.txt, name.txt, subject.txt, letter.txt\n";
-      return false;
-    }
-    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, MailDataDirectory + "/smtp.txt") ||
-        !ReadFileToVector(NameVectorObject.MailDataSetVector, MailDataDirectory + "/name.txt")) {
-      std::cout << "Error: failed to read some file data\n"
-                << "Retry program again\n";
+    int smtpAssignCounter = 0;
+    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMSMailDataDirectory + "/smtps.txt") ||
+        !ReadFileToVector(NameVectorObject.MailDataSetVector, SMSMailDataDirectory + "/sendername.txt")) {
+      std::cout << "\033[2J\033[H";
+      std::cout << "Error: Looks like smtp, sendername file has been moved or deleted.\n"
+                << "Please create these files or restart program to automatically create them.\n";
+      sleep(1);
       return false;
     }
 
-    std::string LeadFileDirectory = fs::path(MailDataDirectory) / LeadsFile;
-    std::string LetterFileDirectory = fs::path(MailDataDirectory) / "letter.txt";
-    std::string SentEmail = fs::path(MailDataDirectory) / "sent.txt";
-    std::string FailedLeadsFile = fs::path(JunkDirectory) / "failed.txt";
-    std::string DeadSMTPsFile = fs::path(JunkDirectory) / "deadsmtp.txt";
+    std::string LeadFileDirectory = fs::path(SMSMailDataDirectory) / LeadsFile;
+    std::string LetterFileDirectory = fs::path(SMSMailDataDirectory) / "letter.txt";
+    std::string SentEmail = fs::path(SMSMailDataDirectory) / "sent.txt";
+    std::string FailedLeadsFile = fs::path(SMSMailJunkDirectory) / "failed.txt";
+    std::string DeadSMTPsFile = fs::path(SMSMailJunkDirectory) / "deadsmtp.txt";
     std::string CurrentSmtp;
 
     if (!GetAndSetSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
@@ -554,7 +640,7 @@ class EmailSenderProgram : public GlobalMethodClass {
       for (auto& lead : LeadsVector) {
         sendername = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
         recipients_list = curl_slist_append(recipients_list, lead.c_str());
-        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, sendername.c_str());
+        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
         curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients_list);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, letter.c_str());
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, writeCallback);
@@ -608,106 +694,158 @@ class EmailSenderProgram : public GlobalMethodClass {
   }
 
   // #: 3 SMTP LIVE TESTER
-  bool SMTPLiveTester(std::string& filename) {
+  bool SMTPLiveTester() {
     CURL* curl;
     CURLcode res;
-    int totalvalid = 0, totaldeadsmtp = 0;
+    int port, smtpAssignCounter = 0, totalvalid = 0, totaldeadsmtp = 0;
     std::unordered_set<std::string> invalidsmtp, validsmtp;
-    std::string servername, port, username, password;
-    std::string CurrentSmtp, smtp, response, testemail, boundary = "----=_Part_001_2345_67890";
-    std::string SMTPDataDirectory = MakeAndGetDirectory(DataDirectory, "SMTPTestData");
-    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPDataDirectory + "/" + filename)) {
-      std::cerr << "Error: failed to read " << filename << std::endl
-                << "Retry program again\n";
+    std::string optionStr, filename, servername, username, password, response, TestEmailAddr, boundary = "----=_Part_001_2345_67890";
+    std::string smtpsdir = fs::path(SMTPLiveTesterDirectory) / "smtps.txt", failedsmtpsdir = fs::path(SMTPLiveTesterDirectory) / "failedsmtps.txt";
+    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, smtpsdir)) {
+      std::cerr << "Error: failed to read data from " << smtpsdir << std::endl
+                << "Please check if file exit and not empty\n";
       return false;
     }
 
     std::cout << "Enter a valid email address: ";
-    std::cin >> testemail;
+    std::cin >> TestEmailAddr;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    std::cout << "SMTP Live Tester Initialized...\n"
-              << "Please wait while the program is testing the SMTPs...\n";
+    std::cout << "\033[2J\033[H"
+              << "SMTP Live Tester Initialized...\n"
+              << "Please wait while the program is testing the SMTPs...\n\n";
+    sleep(1);
 
-    while (true) {
-      if (!GetAndSetSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
-        std::cout << "Total SMTP tested: " << totalvalid + totaldeadsmtp << "\n"
-                  << "Total good SMTPs: " << totalvalid << "\n"
-                  << "Total dead SMTPs: " << totaldeadsmtp << "\n";
-        break;
-      }
-
+    for (auto& smtp : SMTPVectorObject.MailDataSetVector) {
+      std::stringstream ss(smtp);
+      std::getline(ss, servername, '|');
+      ss >> port;
+      ss.ignore();
+      std::getline(ss, username, '|');
+      std::getline(ss, password);
       curl = curl_easy_init();
       if (!curl) {
-        std::cerr << "Failed to initialize curl." << std::endl;
-        break;
+        std::cerr << "Failed to initialize, please check network and try again." << std::endl;
+        return false;
       }
-
       struct curl_slist* recipients = nullptr;
-      recipients = curl_slist_append(recipients, testemail.c_str());
-
+      recipients = curl_slist_append(recipients, TestEmailAddr.c_str());
       response.clear();
-      SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
-
-      std::string data =
-          "Subject: SMTP Test OK\r\n\r\nTest email sent successfully.\r\n"
+      const std::string data =
+          "Subject: SMTP Test OK\r\n"
+          "From: <" +
+          username +
+          ">\r\n"
+          "To: <" +
+          TestEmailAddr +
+          ">\r\n"
           "MIME-Version: 1.0\r\n"
-          "Content-Type: multipart/mixed; boundary=\"" +
-          boundary +
-          "\"\r\n\r\n"
-          "--" +
-          boundary + "\r\n";
-
+          "Content-Type: text/plain; charset=UTF-8\r\n"
+          "Message-ID: <" +
+          std::to_string(time(nullptr)) + "@" + smtp +
+          ">\r\n"
+          "\r\n"
+          "Hello,\r\n" +
+          smtp +
+          "\r\n"
+          "This is a test email to check SMTP configuration.\r\n"
+          "\r\n"
+          "Best regards,\r\n"
+          "Your SMTP Test Response\r\n"
+          "\r\n"
+          ".\r\n";
+      SetCurlForMail(curl, servername, port, username, password);
       curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
-      curl_easy_setopt(curl, CURLOPT_MAIL_FROM, SMTPAttributeObject.username.c_str());
-      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
-      curl_easy_setopt(curl, CURLOPT_READFUNCTION, writeCallback);
-      curl_easy_setopt(curl, CURLOPT_READDATA, &response);
+      curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
       curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-
+      curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
+      curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
+      curl_easy_setopt(curl, CURLOPT_READDATA, &data);
       res = curl_easy_perform(curl);
-
       if (res == CURLE_OK) {
-        servername = SMTPAttributeObject.servername;
-        port = SMTPAttributeObject.port;
-        smtp = servername + "|" + port + "|" + SMTPAttributeObject.username + "|" + SMTPAttributeObject.password;
-
         long responseCode;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
-
         if (responseCode == 250) {
+          std::cout << "=============================    SMTP TEST    ============================= \n"
+                    << smtp << std::endl
+                    << "============================= TEST SUCCESSFUL ============================= \n\n";
           validsmtp.insert(smtp);
           totalvalid++;
         } else {
+          std::cout << "=============================    SMTP TEST    ============================= \n"
+                    << smtp << std::endl
+                    << "=============================   TEST FAILED   ============================= \n\n";
           totaldeadsmtp++;
           invalidsmtp.insert(smtp);
         }
       } else {
         std::cout << "Failed to perform SMTP request: " << curl_easy_strerror(res) << std::endl;
+        curl_easy_cleanup(curl);
+        curl_slist_free_all(recipients);
+        curl_global_cleanup();
+        return false;
       }
       curl_easy_cleanup(curl);
       curl_slist_free_all(recipients);
     }
-
+    std::cout << "Total GOOD / LIVE smtps " << totalvalid << std::endl
+              << "Total BAD / DEAD smtps " << totaldeadsmtp << std::endl;
     curl_global_cleanup();
-
-    std::ofstream smtpfile(SMTPDataDirectory + "/smtp.txt", std::ios::out);
-    std::ofstream invalidsmtpfile(SMTPDataDirectory + "/invalidsmtp.txt", std::ios::out);
-
+    std::fstream smtpfile(smtpsdir, std::ios::out), invalidsmtpfile(failedsmtpsdir, std::ios::out);
     if (!smtpfile || !invalidsmtpfile) {
-      std::cerr << "Error: failed to access output files." << std::endl;
-      return;
+      std::cout << "Failed to open output files for writing results.\n";
+      std::cout << "[VALID SMTPS]" << std::endl;
+      for (const auto& smtp : validsmtp) {
+        std::cout << smtp << std::endl;
+      }
+      std::cout << "\n";
+      std::cout << "[INVALID SMTPS]" << std::endl;
+      for (const auto& smtp : invalidsmtp) {
+        std::cout << smtp << std::endl;
+      }
+      return true;
     }
-
     for (const auto& smtp : validsmtp) {
       smtpfile << smtp << std::endl;
     }
     for (const auto& smtp : invalidsmtp) {
       invalidsmtpfile << smtp << std::endl;
     }
-
     smtpfile.close();
     invalidsmtpfile.close();
+    return true;
+  }
+
+  bool
+  emailextractor() {
+    std::string rawfile = fs::path(EmailExtractorDirectory) / "rawfile.txt";
+    std::string extracted = fs::path(EmailExtractorDirectory) / "extracted.txt";
+    std::ifstream RawFileAccess(rawfile);
+    if (!RawFileAccess) {
+      std::cerr << "Failed to open rawfile.txt ";
+      return false;
+    }
+    std::string rawcontent((std::istreambuf_iterator<char>(RawFileAccess)), std::istreambuf_iterator<char>());
+    RawFileAccess.close();
+    std::regex EmailPattern(R"(([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))");
+    std::set<std::string> emails;
+    std::smatch match;
+    auto searchStart = rawcontent.cbegin();
+    while (std::regex_search(searchStart, rawcontent.cend(), match, EmailPattern)) {
+      emails.insert(match.str());
+      searchStart = match.suffix().first;
+    }
+    int totalemails = emails.size();
+    std::fstream ExtractedFileAccess(extracted, std::ios::out);
+    if (!ExtractedFileAccess) {
+      std::cerr << "Failed to access extracted.txt \n\n";
+      return false;
+    }
+    for (auto& email : emails) {
+      ExtractedFileAccess << email << std::endl;
+    }
+    ExtractedFileAccess.close();
+    std::cout << "Total email extracted " << totalemails << std::endl;
     return true;
   }
 };
@@ -716,24 +854,35 @@ class EmailSenderProgram : public GlobalMethodClass {
 class SMSGatewaySenderProgram : public GlobalMethodClass {
  private:
   struct SMSDataStruct {
-    std::string auth_id, token, SenderNum, lead, message;
     std::vector<std::string> SMSDataVector;
+    std::string auth_id, token, SenderNum, lead, message;
   };
 
  public:
+  std::string SMSGatewaySenders = "SMS Gateway Senders";
+  SMSGatewaySenderProgram() {
+    SMSGatewaySenders = MakeAndGetDirectory("", SMSGatewaySenders);
+  }
+
+  std::string PrepareSMSProgramFiles(std::string SMSGatewaySenderName) {
+    std::string ProgramDirectory = MakeAndGetDirectory(SMSGatewaySenders, SMSGatewaySenderName);
+    std::vector<std::string> FilesVector = {"failedleads.txt", "sentleads.txt", "letter.txt", "leads.txt"};
+    CreateSMSAttributeFiles(ProgramDirectory, FilesVector);
+    return ProgramDirectory;
+  }
+
   // #: 1
-  bool PlivoGatewaySender(std::string& auth_id, std::string& token, std::string& SenderNum, std::string& LeadPath, std::string& letterFileName) {
-    SMSDataStruct SMSData;
-    std::string SMSDataDirectory, SMSAssets, Junks, PlivoGatewaySender = "PlivoGatewaySender";
-    CreateSMSDirectories(SMSDataDirectory, PlivoGatewaySender, SMSAssets, Junks);
-    std::string failedleads = Junks + "/failedleads.txt";
-    std::string sentleads = SMSAssets + "/sentleads.txt";
-    std::string letterFilePath = SMSAssets + "/" + letterFileName;
+  bool PlivoGatewaySender(std::string& ProgramDirectory, std::string& auth_id, std::string& token, std::string& SenderNum) {
+    SMSDataStruct SMSDataObject;
+    std::string LetterFilePath = fs::path(ProgramDirectory) / "letter.txt";
+    std::string FailedleadsPath = fs::path(ProgramDirectory) / "failedleads.txt";
+    std::string SentleadsPath = fs::path(ProgramDirectory) / "sentleads.txt";
+    std::string LeadsFilePath = fs::path(ProgramDirectory) / "leads.txt";
     std::string authentication = auth_id + ":" + token;
-    if (!ReadFileToVector(SMSData.SMSDataVector, LeadPath) || !ReadFromFile(letterFilePath, SMSData.message)) {
+    if (!ReadFileToVector(SMSDataObject.SMSDataVector, LeadsFilePath) || !ReadFromFile(LetterFilePath, SMSDataObject.message)) {
       std::cerr << "Error: failed to find or read these directories: \n"
-                << LeadPath << std::endl
-                << letterFilePath << std::endl
+                << LeadsFilePath << std::endl
+                << LetterFilePath << std::endl
                 << "Please check files and retry program...\n";
       return false;
     }
@@ -744,8 +893,8 @@ class SMSGatewaySenderProgram : public GlobalMethodClass {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
     if (curl) {
-      for (auto& lead : SMSData.SMSDataVector) {
-        std::string encodedMessage = UrlEncode(SMSData.message);
+      for (auto& lead : SMSDataObject.SMSDataVector) {
+        std::string encodedMessage = UrlEncode(SMSDataObject.message);
         std::string POSTDATA = "src=" + SenderNum + "&dst=" + lead + "&text=" + encodedMessage;
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPPOST, 1L);
@@ -764,13 +913,13 @@ class SMSGatewaySenderProgram : public GlobalMethodClass {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
         if (responseCode == 202) {
           SMSSuccessMessage(SenderNum, lead);
-          WriteToFile(sentleads, lead);
+          WriteToFile(SentleadsPath, lead);
           successCount++;
           errorCount = 0;
         } else {
           if (errorCount <= 3) {
             std::cout << "Error: Failed to send SMS to " << lead << std::endl;
-            WriteToFile(failedleads, lead);
+            WriteToFile(FailedleadsPath, lead);
             errorCount++;
           } else {
             std::cout << "Please check Plivo Account for troubleshoot..." << std::endl;
@@ -784,24 +933,22 @@ class SMSGatewaySenderProgram : public GlobalMethodClass {
       curl_easy_cleanup(curl);
     }
     curl_global_cleanup();
-    LeadFinalCleanUp(LeadPath, sentleads, failedleads);
+    LeadFinalCleanUp(LeadsFilePath, SentleadsPath, FailedleadsPath);
     return true;
   }
 
   // #: 2
-  bool TwilioGatewaySender(std::string& auth_id, std::string& token, std::string& SenderNum, std::string& LeadPath, std::string& letterFileName) {
-    SMSDataStruct SMSData;
-    std::string SMSDataDirectory, SMSAssets, Junks, TwilioGatewaySender = "TwilioGatewaySender";
-    CreateSMSDirectories(SMSDataDirectory, TwilioGatewaySender, SMSAssets, Junks);
-    std::string failedleads = Junks + "/failedleads.txt";
-    std::string sentleads = SMSAssets + "/sentleads.txt";
-    std::string letterFilePath = SMSAssets + "/" + letterFileName;
+  bool TwilioGatewaySender(std::string& ProgramDirectory, std::string& auth_id, std::string& token, std::string& SenderNum) {
+    SMSDataStruct SMSDataObject;
+    std::string LetterFilePath = fs::path(ProgramDirectory) / "letter.txt";
+    std::string FailedleadsPath = fs::path(ProgramDirectory) / "failedleads.txt";
+    std::string SentleadsPath = fs::path(ProgramDirectory) / "sentleads.txt";
+    std::string LeadsFilePath = fs::path(ProgramDirectory) / "leads.txt";
     std::string authentication = auth_id + ":" + token;
-
-    if (!ReadFileToVector(SMSData.SMSDataVector, LeadPath) || !ReadFromFile(letterFilePath, SMSData.message)) {
+    if (!ReadFileToVector(SMSDataObject.SMSDataVector, LeadsFilePath) || !ReadFromFile(LetterFilePath, SMSDataObject.message)) {
       std::cerr << "Error: failed to find or read these directories: \n"
-                << LeadPath << std::endl
-                << letterFilePath << std::endl
+                << LeadsFilePath << std::endl
+                << LetterFilePath << std::endl
                 << "Please check files and retry program...\n";
       return false;
     }
@@ -812,8 +959,8 @@ class SMSGatewaySenderProgram : public GlobalMethodClass {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
     if (curl) {
-      for (auto& lead : SMSData.SMSDataVector) {
-        std::string POSTDATA = "From=" + UrlEncode(SenderNum) + "&To=" + UrlEncode(lead) + "&Body=" + UrlEncode(SMSData.message);
+      for (auto& lead : SMSDataObject.SMSDataVector) {
+        std::string POSTDATA = "From=" + UrlEncode(SenderNum) + "&To=" + UrlEncode(lead) + "&Body=" + UrlEncode(SMSDataObject.message);
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
@@ -831,14 +978,14 @@ class SMSGatewaySenderProgram : public GlobalMethodClass {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
         if (responseCode == 201) {
           SMSSuccessMessage(SenderNum, lead);
-          WriteToFile(sentleads, lead);
+          WriteToFile(SentleadsPath, lead);
           successCount++;
           errorCount = 0;
         } else {
           if (errorCount <= 3) {
             std::cout << "Failed to send SMS to " << lead << std::endl
                       << "Response code: " << responseCode << std::endl;
-            WriteToFile(failedleads, lead);
+            WriteToFile(FailedleadsPath, lead);
             errorCount++;
           } else {
             std::cout << "Please check Twilio Account for troubleshoot..." << std::endl;
@@ -852,7 +999,290 @@ class SMSGatewaySenderProgram : public GlobalMethodClass {
       curl_easy_cleanup(curl);
     }
     curl_global_cleanup();
-    LeadFinalCleanUp(LeadPath, sentleads, failedleads);
+    LeadFinalCleanUp(LeadsFilePath, SentleadsPath, FailedleadsPath);
+    return true;
+  }
+
+  // #: 3
+  bool TrueDialogGatewaySender(std::string& ProgramDirectory, std::string& token, std::string& SenderNum) {
+    SMSDataStruct SMSDataObject;
+    std::string bearerToken = token;
+    std::string LetterFilePath = fs::path(ProgramDirectory) / "letter.txt";
+    std::string FailedleadsPath = fs::path(ProgramDirectory) / "failedleads.txt";
+    std::string SentleadsPath = fs::path(ProgramDirectory) / "sentleads.txt";
+    std::string LeadsFilePath = fs::path(ProgramDirectory) / "leads.txt";
+    std::vector<std::string> FilesVector = {"failedleads.txt", "sentleads.txt"};
+    CreateSMSAttributeFiles(ProgramDirectory, FilesVector);
+    if (!ReadFileToVector(SMSDataObject.SMSDataVector, LeadsFilePath) || !ReadFromFile(LetterFilePath, SMSDataObject.message)) {
+      std::cerr << "Error: Failed to read these directories:\n"
+                << LeadsFilePath << "\n"
+                << LetterFilePath << "\n";
+      return false;
+    }
+    int batchsize, errorCount = 0, successCount = 0, interatorSize = 0;
+    std::string url = "https://api.truedialog.com/api/v2.1/Message";
+    CURL* curl;
+    CURLcode res;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if (curl) {
+      std::cout << "True Dialog Gateway send sms in batch \n"
+                << "Choose batch size (Recommended: 50/send): ";
+      std::cin >> batchsize;
+      interatorSize = SMSDataObject.SMSDataVector.size() / batchsize;
+      for (int i = 0; i < interatorSize; i++) {
+        std::string POSTDATA = "{ \"From\": \"" + SenderNum + "\", \"To\": [";
+        for (int j = 0; j < batchsize; j++) {
+          int index = i * batchsize + j;
+          if (index >= SMSDataObject.SMSDataVector.size()) break;
+          POSTDATA += "\"" + SMSDataObject.SMSDataVector[index] + "\",";
+        }
+        POSTDATA.pop_back();
+        POSTDATA += "], \"Text\": \"" + SMSDataObject.message + "\" }";
+        std::string responseBody;
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, "Content-Type: application/json");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, ("Authorization: Bearer " + bearerToken).c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, POSTDATA.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseBody);
+        res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+          std::cerr << "Curl failed to process operation..." << std::endl
+                    << curl_easy_strerror(res) << std::endl;
+          curl_easy_cleanup(curl);
+          curl_global_cleanup();
+          return false;
+        }
+        long responseCode;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
+        if (responseCode == 201) {
+          Json::CharReaderBuilder reader;
+          Json::Value jsonData;
+          std::istringstream sstream(responseBody);
+
+          if (!Json::parseFromStream(reader, sstream, &jsonData, nullptr)) {
+            std::cerr << "Error parsing JSON response!" << std::endl;
+            return false;
+          }
+          const Json::Value& results = jsonData["results"];
+          for (int j = 0; j < batchsize; j++) {
+            int index = i * batchsize + j;
+            std::string contact = SMSDataObject.SMSDataVector[index];
+            std::string status = results[j]["status"].asString();
+
+            if (status == "Success") {
+              SMSSuccessMessage(SenderNum, contact);
+              WriteToFile(SentleadsPath, contact);
+              successCount++;
+              errorCount = 0;
+            } else {
+              if (errorCount <= 6) {
+                std::cout << "Please check TrueDialog Account for troubleshoot..." << std::endl;
+                curl_easy_cleanup(curl);
+                curl_global_cleanup();
+                return false;
+              }
+              std::cout << "SMS Failed to send: " << contact << std::endl;
+              WriteToFile(FailedleadsPath, contact);
+              errorCount++;
+            }
+          }
+        } else {
+          std::cout << "Error: Operation failed, please try again \n";
+          curl_easy_cleanup(curl);
+          curl_global_cleanup();
+          return false;
+        }
+      }
+      std::cout << "Total successfully sent SMS to " << successCount << " Leads \n";
+      curl_easy_cleanup(curl);
+    }
+    curl_global_cleanup();
+    LeadFinalCleanUp(LeadsFilePath, SentleadsPath, FailedleadsPath);
+    return true;
+  }
+
+  // #: 4
+  bool ClickatellGatewaySender(std::string& ProgramDirectory, std::string& apiKey, std::string& SenderNum) {
+    SMSDataStruct SMSDataObject;
+    std::string bearerToken = apiKey;
+    std::string LetterFilePath = fs::path(ProgramDirectory) / "letter.txt";
+    std::string FailedleadsPath = fs::path(ProgramDirectory) / "failedleads.txt";
+    std::string SentleadsPath = fs::path(ProgramDirectory) / "sentleads.txt";
+    std::string LeadsFilePath = fs::path(ProgramDirectory) / "leads.txt";
+    if (!ReadFileToVector(SMSDataObject.SMSDataVector, LeadsFilePath) || !ReadFromFile(LetterFilePath, SMSDataObject.message)) {
+      std::cerr << "Error: Failed to read these directories:\n"
+                << LeadsFilePath << "\n"
+                << LetterFilePath << "\n";
+      return false;
+    }
+
+    int batchsize, errorCount = 0, successCount = 0, interatorSize = 0;
+    std::string url = "https://platform.clickatell.com/messages";
+    CURL* curl;
+    CURLcode res;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+
+    if (curl) {
+      std::cout << "Clickatell Gateway send SMS in batch \nChoose batch size (Recommended: 50/send): ";
+      std::cin >> batchsize;
+      interatorSize = SMSDataObject.SMSDataVector.size() / batchsize;
+
+      for (int i = 0; i < interatorSize; i++) {
+        std::string POSTDATA = "{ \"content\": \"" + SMSDataObject.message + "\", \"to\": [";
+        for (int j = 0; j < batchsize; j++) {
+          int index = i * batchsize + j;
+          if (index >= SMSDataObject.SMSDataVector.size()) break;
+          POSTDATA += "\"" + SMSDataObject.SMSDataVector[index] + "\",";
+        }
+        POSTDATA.pop_back();
+        POSTDATA += "] }";
+
+        std::string responseBody;
+        struct curl_slist* headers = nullptr;
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        headers = curl_slist_append(headers, ("Authorization: Bearer " + bearerToken).c_str());
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, POSTDATA.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseBody);
+
+        res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+          std::cerr << "Curl failed: " << curl_easy_strerror(res) << std::endl;
+          curl_easy_cleanup(curl);
+          curl_global_cleanup();
+          return false;
+        }
+
+        long responseCode;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
+
+        if (responseCode == 202) {
+          Json::CharReaderBuilder reader;
+          Json::Value jsonData;
+          std::istringstream sstream(responseBody);
+
+          if (!Json::parseFromStream(reader, sstream, &jsonData, nullptr)) {
+            std::cerr << "Error parsing JSON response!" << std::endl;
+            return false;
+          }
+          const Json::Value& messages = jsonData["messages"];
+
+          for (int j = 0; j < messages.size(); j++) {
+            std::string contact = messages[j]["to"].asString();
+            std::string status = messages[j]["status"].asString();
+
+            if (status == "QUEUED") {
+              SMSSuccessMessage(SenderNum, contact);
+              WriteToFile(SentleadsPath, contact);
+              successCount++;
+              errorCount = 0;
+            } else {
+              if (errorCount <= 6) {
+                std::cout << "Check Clickatell Account for troubleshoot..." << std::endl;
+                curl_easy_cleanup(curl);
+                curl_global_cleanup();
+                return false;
+              }
+              std::cout << "SMS Failed to send: " << contact << std::endl;
+              WriteToFile(FailedleadsPath, contact);
+              errorCount++;
+            }
+          }
+        } else {
+          std::cout << "Error: Operation failed, response code: " << responseCode << "\n";
+          curl_easy_cleanup(curl);
+          curl_global_cleanup();
+          return false;
+        }
+      }
+
+      std::cout << "Total successfully sent SMS to " << successCount << " Leads\n";
+      curl_easy_cleanup(curl);
+    }
+
+    curl_global_cleanup();
+    LeadFinalCleanUp(LeadsFilePath, SentleadsPath, FailedleadsPath);
+    return true;
+  }
+
+  // #: 5
+  bool MessageBirdGatewaySender(std::string& ProgramDirectory, std::string& apiKey, std::string& SenderNum) {
+    SMSDataStruct SMSDataObject;
+    std::string bearerToken = apiKey;
+    std::string LetterFilePath = fs::path(ProgramDirectory) / "letter.txt";
+    std::string FailedleadsPath = fs::path(ProgramDirectory) / "failedleads.txt";
+    std::string SentleadsPath = fs::path(ProgramDirectory) / "sentleads.txt";
+    std::string LeadsFilePath = fs::path(ProgramDirectory) / "leads.txt";
+    if (!ReadFileToVector(SMSDataObject.SMSDataVector, LeadsFilePath) || !ReadFromFile(LetterFilePath, SMSDataObject.message)) {
+      std::cerr << "Error: Failed to read these directories:\n"
+                << LeadsFilePath << "\n"
+                << LetterFilePath << "\n";
+      return false;
+    }
+    int errorCount = 0, successCount = 0;
+    std::string url = "https://rest.messagebird.com/messages";
+    CURL* curl;
+    CURLcode res;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+
+    if (curl) {
+      for (auto& lead : SMSDataObject.SMSDataVector) {
+        std::string POSTDATA = "{\"from\":\"" + SenderNum + "\",\"to\":\"" + lead + "\",\"body\":\"" + SMSDataObject.message + "\"}";
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
+        std::string authHeader = "Authorization: AccessKey " + apiKey;
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, authHeader.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, POSTDATA.c_str());
+
+        res = curl_easy_perform(curl);
+
+        if (res != CURLE_OK) {
+          std::cerr << "Curl failed to process operation..." << std::endl
+                    << curl_easy_strerror(res) << std::endl;
+          curl_easy_cleanup(curl);
+          curl_global_cleanup();
+          return false;
+        }
+
+        long responseCode;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
+
+        if (responseCode == 200) {
+          SMSSuccessMessage(SenderNum, lead);
+          WriteToFile(SentleadsPath, lead);
+          successCount++;
+          errorCount = 0;
+        } else {
+          if (errorCount <= 3) {
+            std::cout << "Failed to send SMS to " << lead << std::endl
+                      << "Response code: " << responseCode << std::endl;
+            WriteToFile(FailedleadsPath, lead);
+            errorCount++;
+          } else {
+            std::cout << "Please check MessageBird Account for troubleshooting..." << std::endl;
+            curl_easy_cleanup(curl);
+            curl_global_cleanup();
+            return false;
+          }
+        }
+      }
+      std::cout << "Total successfully sent SMS to " << successCount << " Leads \n";
+      curl_easy_cleanup(curl);
+    }
+
+    curl_global_cleanup();
+    LeadFinalCleanUp(LeadsFilePath, SentleadsPath, FailedleadsPath);
     return true;
   }
 };
@@ -863,7 +1293,8 @@ int main(void) {
   EmailSenderProgram EmailProgramObject;
   SMSGatewaySenderProgram SMSGatewaySenderProgram;
   std::string optionStr;
-  std::string optionArr[5];
+  std::string optionArr[3];
+  std::string ProgramDirectory;
   bool UseAttachment, UseHTML;
   int option;
   std::cout << "\t\t[ECHOBLAST V1 : TELEGRAM H4CKECHO]\n\n"
@@ -872,10 +1303,17 @@ int main(void) {
             << "3. SMS Gateway Sender\n"
             << "4. SMTP Live Tester\n"
             << "5. Remove Duplicates\n"
+            << "6. Email Extractor\n"
             << "Choose a program: ";
   std::cin >> option;
   switch (option) {
     case 1:
+
+      // #: 1 EMAIL SENDER
+      if (!EmailProgramObject.PrepareEmailSenderDirectories()) {
+        std::cerr << "Error: Program failed to create Email Sender directories\n";
+        return 1;
+      }
       std::cout << "\033[2J\033[H"
                 << "\t\t[EMAIL SENDER INITIALIZED]\n\n"
                 << "Are you using HTML Letter (Y/N): ";
@@ -885,10 +1323,7 @@ int main(void) {
       std::cout << "Are you using Attachment (Y/N): ";
       std::cin >> optionStr;
       UseAttachment = (optionStr == "Y" || optionStr == "y") ? true : false;
-
-      std::cout << "Email lead filename (Example: filename.txt): ";
-      std::cin >> optionStr;
-      if (EmailProgramObject.EmailSender(UseHTML, UseAttachment, optionStr)) {
+      if (EmailProgramObject.EmailSender(UseHTML, UseAttachment)) {
         sleep(1);
         std::cout << "\033[2J\033[H"
                   << "Email Sender program completed.\n";
@@ -902,6 +1337,11 @@ int main(void) {
       break;
 
     case 2:
+      //  #: 2 EMAIL TO SMS SENDER
+      if (!EmailProgramObject.PrepareEmailToSMSDirectories()) {
+        std::cerr << "Error: Program failed to create Email to SMS directories\n";
+        return 1;
+      }
       std::cout << "\033[2J\033[H"
                 << "\t\t[EMAIL -> SMS SENDER INITIALIZED]\n\n"
                 << "Phone Number lead filename (Example: filename.txt): ";
@@ -931,19 +1371,17 @@ int main(void) {
       std::cin >> option;
       switch (option) {
         case 1:
+          ProgramDirectory = SMSGatewaySenderProgram.PrepareSMSProgramFiles("PlivoGatewaySender");
           std::cout << "\033[2J\033[H";
-          std::cout << "Plivo SMS Gateway selected.\n";
+          std::cout << "\t\t[PLIVO SMS GATEWAY]\n\n";
           std::cout << "Plivo Auth ID: ";
           std::cin >> optionArr[0];
           std::cout << "Plivo Auth Token: ";
           std::cin >> optionArr[1];
           std::cout << "Plivo Sender Number: ";
           std::cin >> optionArr[2];
-          std::cout << "Plivo SMS lead filename (filename.txt): ";
-          std::cin >> optionArr[3];
-          std::cout << "Plivo SMS Letter filename (filename.txt): ";
-          std::cin >> optionArr[4];
-          if (SMSGatewaySenderProgram.PlivoGatewaySender(optionArr[0], optionArr[1], optionArr[2], optionArr[3], optionArr[4])) {
+          std::cout << "\033[2J\033[H";
+          if (SMSGatewaySenderProgram.PlivoGatewaySender(ProgramDirectory, optionArr[0], optionArr[1], optionArr[2])) {
             sleep(1);
             std::cout << "\033[2J\033[H";
             std::cout << "Plivo SMS Gateway Sender program completed.\n";
@@ -957,95 +1395,108 @@ int main(void) {
           break;
 
         case 2:
-          std::cout << "Twilio SMS Gateway selected.\n";
+          ProgramDirectory = SMSGatewaySenderProgram.PrepareSMSProgramFiles("TwilioGatewaySender");
+          std::cout << "\033[2J\033[H";
+          std::cout << "\t\t[TWILIO SMS GATEWAY]\n\n";
           std::cout << "Twilio Account SID: ";
           std::cin >> optionArr[0];
           std::cout << "Twilio Auth Token: ";
           std::cin >> optionArr[1];
           std::cout << "Twilio Sender Number: ";
           std::cin >> optionArr[2];
-          std::cout << "Twilio SMS lead filename (filename.txt): ";
-          std::cin >> optionArr[3];
-          std::cout << "Twilio SMS message: ";
-          std::cin >> optionArr[4];
-          if (SMSGatewaySenderProgram.TwilioGatewaySender(optionArr[0], optionArr[1], optionArr[2], optionArr[3], optionArr[4])) {
+          std::cout << "\033[2J\033[H";
+          if (SMSGatewaySenderProgram.TwilioGatewaySender(ProgramDirectory, optionArr[0], optionArr[1], optionArr[2])) {
             sleep(1);
-            std::cout << "\033[2J\033[H";
             std::cout << "Twilio SMS Gateway Sender program completed.\n";
             GlobalMethodObject.prompt();
           } else {
             sleep(1);
-            std::cout << "\033[2J\033[H";
             std::cout << "Twilio SMS Gateway Sender program failed.\n";
             GlobalMethodObject.prompt();
           }
           break;
-
         case 3:
-          std::cout << "TrueDialog SMS Gateway selected.\n";
-          std::cout << "TrueDialog Auth ID: ";
-          std::cin >> optionStr;
-          std::cout << "TrueDialog Auth Token: ";
-          std::cin >> optionStr;
+          ProgramDirectory = SMSGatewaySenderProgram.PrepareSMSProgramFiles("TrueDialogGatewaySender");
+          std::cout << "\033[2J\033[H";
+          std::cout << "\t\t[TRUE DIALOG SMS GATEWAY]\n\n";
+          std::cout << "TrueDialog Bearer Token: ";
+          std::cin >> optionArr[0];
           std::cout << "TrueDialog Sender Number: ";
-          std::cin >> optionStr;
-          std::cout << "TrueDialog SMS lead filename (filename.txt): ";
-          std::cin >> optionStr;
-          std::cout << "TrueDialog SMS message: ";
-          std::cin >> optionStr;
-          // SMSGatewaySenderProgram.TrueDialogGatewaySender(optionStr, optionStr, optionStr, optionStr, optionStr);
+          std::cin >> optionArr[1];
+          std::cout << "\033[2J\033[H";
+          if (SMSGatewaySenderProgram.TrueDialogGatewaySender(ProgramDirectory, optionArr[0], optionArr[1])) {
+            sleep(1);
+            std::cout << "\033[2J\033[H";
+            std::cout << "TrueDialog SMS Gateway Sender program completed.\n";
+            GlobalMethodObject.prompt();
+          } else {
+            sleep(1);
+            std::cout << "\033[2J\033[H";
+            std::cout << "TrueDialog SMS Gateway Sender program failed.\n";
+            GlobalMethodObject.prompt();
+          }
           break;
-
         case 4:
-          std::cout << "Clickatell SMS Gateway selected.\n";
-          std::cout << "Clickatell Auth ID: ";
-          std::
-                  cin >>
-              optionStr;
-          std::cout << "Clickatell Auth Token: ";
-          std::cin >> optionStr;
+          ProgramDirectory = SMSGatewaySenderProgram.PrepareSMSProgramFiles("ClickatellGatewaySender");
+          std::cout << "\033[2J\033[H";
+          std::cout << "\t\t[CLICKATELL SMS GATEWAY]\n\n";
+          std::cout << "Clickatell API Key: ";
+          std::cin >> optionArr[0];
           std::cout << "Clickatell Sender Number: ";
-          std::cin >> optionStr;
-          std::cout << "Clickatell SMS lead filename (filename.txt): ";
-          std::cin >> optionStr;
-          std::cout << "Clickatell SMS message: ";
-          std::cin >> optionStr;
-          // SMSGatewaySenderProgram.ClickatellGatewaySender(optionStr, optionStr, optionStr, optionStr, optionStr);
+          std::cin >> optionArr[1];
+          std::cout << "\033[2J\033[H";
+          if (SMSGatewaySenderProgram.ClickatellGatewaySender(ProgramDirectory, optionArr[0], optionArr[1])) {
+            sleep(1);
+            std::cout << "\033[2J\033[H";
+            std::cout << "Clickatell SMS Gateway Sender program completed.\n";
+            GlobalMethodObject.prompt();
+          } else {
+            sleep(1);
+            std::cout << "\033[2J\033[H";
+            std::cout << "Clickatell SMS Gateway Sender program failed.\n";
+            GlobalMethodObject.prompt();
+          }
           break;
 
         case 5:
-          std::cout << "Message Bird SMS Gateway selected.\n";
-          std::cout << "Message Bird Auth ID: ";
-          std::cin >> optionStr;
-          std::cout << "Message Bird Auth Token: ";
-          std::cin >> optionStr;
+          ProgramDirectory = SMSGatewaySenderProgram.PrepareSMSProgramFiles("MessageBirdGatewaySender");
+          std::cout << "\033[2J\033[H";
+          std::cout << "\t\t[MESSAGE BIRD SMS GATEWAY]\n\n";
+          std::cout << "Message Bird API Key: ";
+          std::cin >> optionArr[0];
           std::cout << "Message Bird Sender Number: ";
-          std::cin >> optionStr;
-          std::cout << "Message Bird SMS lead filename (filename.txt): ";
-          std::cin >> optionStr;
-          std::cout << "Message Bird SMS message: ";
-          std::cin >> optionStr;
-          // SMSGatewaySenderProgram.MessageBirdGatewaySender(optionStr, optionStr, optionStr, optionStr, optionStr);
+          std::cin >> optionArr[1];
+          std::cout << "\033[2J\033[H";
+          if (SMSGatewaySenderProgram.MessageBirdGatewaySender(ProgramDirectory, optionArr[0], optionArr[1])) {
+            sleep(1);
+            std::cout << "\033[2J\033[H";
+            std::cout << "Message Bird SMS Gateway Sender program completed.\n";
+            GlobalMethodObject.prompt();
+          } else {
+            sleep(1);
+            std::cout << "\033[2J\033[H";
+            std::cout << "Message Bird SMS Gateway Sender program failed.\n";
+            GlobalMethodObject.prompt();
+          }
           break;
         default:
           std::cout << "Invalid option selected. \n";
           GlobalMethodObject.prompt();
           break;
       }
+      break;
     case 4:
+      EmailProgramObject.PrepareSMTPLiveTesterDirectories();
       std::cout << "\033[2J\033[H"
-                << "\t\t[SMTP LIVE TESTER INITIALIZED]\n\n"
-                << "SMTP filename (Example: filename.txt): ";
-      std::cin >> optionStr;
-
-      if (EmailProgramObject.SMTPLiveTester(optionStr)) {
+                << "\t\t[SMTP LIVE TESTER INITIALIZED]\n\n";
+      if (EmailProgramObject.SMTPLiveTester()) {
         sleep(1);
-        std::cout << "\033[2J\033[H"
-                  << "SMTP Live Tester program completed.\n";
+        std::cout
+            << "SMTP Live Tester program completed.\n";
       } else {
         sleep(1);
-        std::cout << "\033[2J\033[H"
-                  << "SMTP Live Tester program failed.\n";
+        std::cout
+            << "SMTP Live Tester program failed.\n";
       }
       GlobalMethodObject.prompt();
       break;
@@ -1065,6 +1516,25 @@ int main(void) {
                   << "Duplicates removal failed.\n";
       }
       GlobalMethodObject.prompt();
+      break;
+    case 6:
+      EmailProgramObject.PrepareEmailExtractorDirectories();
+      std::cout << "\033[2J\033[H"
+                << "[EMAIL EXTRACTOR INITIALIZED] \n\n";
+      std::cout << "Copy and paste raw file inside rawfile.txt in Email Extractor Directory \n"
+                << "Continue extraction (Y/N) ?: ";
+      std::cin >> optionStr;
+      if (optionStr == "Y" || optionStr == "y") {
+        if (!EmailProgramObject.emailextractor()) {
+          sleep(1);
+          std::cout << "Email Extraction is completed...\n";
+          GlobalMethodObject.prompt();
+        } else {
+          sleep(1);
+          std::cout << "Email Extraction failed... \n";
+          GlobalMethodObject.prompt();
+        }
+      }
       break;
 
     default:
