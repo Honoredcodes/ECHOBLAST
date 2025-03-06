@@ -5,4 +5,4 @@ g++ -std=c++17 -o program main.cpp \
  -L/opt/homebrew/opt/curl/lib \
  -ljsoncpp -lcurl
 
- cd ./Projects/"C++ PROJECTS"/ECHOBLAST
+ cd ./Projects/"C++ PROJECTS"/ECHOBLAST_UNIX

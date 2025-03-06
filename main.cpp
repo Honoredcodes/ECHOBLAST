@@ -38,17 +38,24 @@ size_t readCallback(void* ptr, size_t size, size_t nmemb, void* userdata) {
   data->erase(0, toCopy);  // Remove sent data
   return toCopy;
 }
-// class CurlHandle {
-//  private:
-//   CURL* curl;
 
-//  public:
-//   CurlHandle() : curl(curl_easy_init()) {}
-//   ~CurlHandle() {
-//     if (curl) curl_easy_cleanup(curl);
-//   }
-//   CURL* get() { return curl; }
-// };
+class cURLHandler {
+ private:
+  CURL* curl;
+
+ public:
+  cURLHandler() {
+    curl = curl_easy_init();
+    CURLcode res;
+    if (!curl) {
+      throw std::runtime_error("Failed to initialize curl");
+    }
+  }
+
+  ~cURLHandler() {
+    if (curl) curl_easy_cleanup(curl);
+  }
+};
 
 class GlobalMethodClass {
  public:
@@ -324,19 +331,23 @@ class GlobalMethodClass {
 
   // #: 15
   void EmailSuccessMessage(std::string& sendername, std::string& subject, std::string& lead) {
-    std::cout << "=================================>   EMAIL SENT SUCCESSFUL  <=================================\n"
+    std::cout << " \033[32m"
+              << "=================================>   EMAIL SENT SUCCESSFUL  <=================================\n"
               << "> SENDER NAME: " << sendername << std::endl
               << "> SUBJECT: " << subject << std::endl
               << "> Email Successfully Sent To: " << lead << std::endl
-              << "=================================>  ECHOBLAST EMAIL SENDER  <=================================\n\n";
+              << "=================================>  ECHOBLAST EMAIL SENDER  <=================================\n\n"
+              << " \033[0m";
   }
 
   // #: 16
   void SMSSuccessMessage(std::string& sendername, std::string& lead) {
-    std::cout << "=================================> ECHOBLAST SMS SENDER <================================="
+    std::cout << " \033[32m"
+              << "=================================> ECHOBLAST SMS SENDER <================================="
               << "SENDER NAME: " << sendername << std::endl
               << "SMS Successfully Sent To: " << lead << std::endl
-              << "=================================> ECHOBLAST SMS SENDER <=================================\n\n";
+              << "=================================> ECHOBLAST SMS SENDER <=================================\n\n"
+              << " \033[0m";
   }
 
   // #: 17
@@ -471,7 +482,6 @@ class EmailSenderProgram : public GlobalMethodClass {
 
   // #: 1 Email Sender
   bool EmailSender(bool useHTML, bool useAttachment) {
-    int smtpAssignCounter = 0;
     if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "smtps.txt") ||
         !ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt") ||
         !ReadFileToVector(SubjectVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "subject.txt")) {
@@ -590,67 +600,72 @@ class EmailSenderProgram : public GlobalMethodClass {
   }
 
   // #: 2 Email to SMS Sender
-  bool EmailToSMSSender(std::string& LeadsFile) {
-    int smtpAssignCounter = 0;
-    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMSMailDataDirectory + "/smtps.txt") ||
-        !ReadFileToVector(NameVectorObject.MailDataSetVector, SMSMailDataDirectory + "/sendername.txt")) {
-      std::cout << "\033[2J\033[H";
-      std::cout << "Error: Looks like smtp, sendername file has been moved or deleted.\n"
-                << "Please create these files or restart program to automatically create them.\n";
+  bool MailSMSSender(std::string& LeadsFile) {
+    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "smtps.txt") ||
+        !ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt")) {
+      std::cerr << "Mail SMS Asset Files Cannot Be Empty \n";
       sleep(1);
       return false;
     }
-
     std::string LeadFileDirectory = fs::path(SMSMailDataDirectory) / LeadsFile;
     std::string LetterFileDirectory = fs::path(SMSMailDataDirectory) / "letter.txt";
     std::string SentEmail = fs::path(SMSMailDataDirectory) / "sent.txt";
     std::string FailedLeadsFile = fs::path(SMSMailJunkDirectory) / "failed.txt";
     std::string DeadSMTPsFile = fs::path(SMSMailJunkDirectory) / "deadsmtp.txt";
     std::string CurrentSmtp;
-
     if (!GetAndSetSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
-      std::cout << "SMTP not found or finished....\n";
+      std::cout << "SMTP not found or exhuasted.\n";
       return false;
     }
-
     int SentCount = 0, errorCount = 0, &port = SMTPAttributeObject.port;
     std::string& servername = SMTPAttributeObject.servername;
     std::string& username = SMTPAttributeObject.username;
     std::string& password = SMTPAttributeObject.password;
-    std::string sendername, subject, letter;
+    std::string sendername, letter;
     std::vector<std::string> LeadsVector;
     if (!ReadFileToVector(LeadsVector, LeadFileDirectory)) {
-      std::cerr << "Error: failed to read " << LeadsFile << std::endl
-                << "Retry program again\n";
+      std::cerr << "Program Failed To Access " << LeadFileDirectory << std::endl;
       return false;
     }
     long responseCode;
     ReadFromFile(LetterFileDirectory, letter);
+
     CURL* curl;
     CURLcode res;
     curl_slist* recipients_list = nullptr;
     std::string response;
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
+    if (!curl) {
+      std::cerr << "Program failed to initilize sender, please check network connection /n";
+      return false;
+    }
     if (curl) {
       SetCurlForMail(curl, servername, port, username, password);
       std::cout << "\033[2J\033[H";
-      std::cout << "Email to SMS Sender Initialized...\n";
+      std::cout << "\t\t[EMAIL TO SMS SENDER INITIALIZED]\n\n";
       sleep(1);
+      const std::string data =
+          "From: +1234567890\r\n"  // Set your phone number as sender
+          "\r\n" +
+          letter +
+          "\r\n";
       for (auto& lead : LeadsVector) {
         sendername = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
         recipients_list = curl_slist_append(recipients_list, lead.c_str());
-        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
         curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients_list);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, letter.c_str());
-        curl_easy_setopt(curl, CURLOPT_READFUNCTION, writeCallback);
-        curl_easy_setopt(curl, CURLOPT_READDATA, &response);
+        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, "<+1234567890>");
+        curl_easy_setopt(curl, CURLOPT_READDATA, &data);
         curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
+
         res = curl_easy_perform(curl);
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
         if (res == CURLE_OK && responseCode == 250) {
           WriteToFile(SentEmail, lead);
-          EmailSuccessMessage(sendername, subject, lead);
+          SMSSuccessMessage(sendername, lead);
           curl_slist_free_all(recipients_list);
           recipients_list = nullptr;
           SentCount++;
@@ -661,13 +676,18 @@ class EmailSenderProgram : public GlobalMethodClass {
             WriteToFile(FailedLeadsFile, lead);
           } else if (errorCount >= 4 && errorCount <= 6) {
             WriteToFile(DeadSMTPsFile, CurrentSmtp);
-            if (!GetAndSetSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
+            if (!GetAndSetSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password) && SentCount > 0) {
               std::cout << "SMTP not found or finished....\n"
                         << "Total successfully sent email to " << SentCount << " Leads\n";
               curl_slist_free_all(recipients_list);
               recipients_list = nullptr;
               LeadFinalCleanUp(LeadFileDirectory, SentEmail, FailedLeadsFile);
-              break;
+              return true;
+            } else {
+              std::cout << "SMTP not found or finished....\n";
+              curl_slist_free_all(recipients_list);
+              recipients_list = nullptr;
+              return false;
             }
             SetCurlForMail(curl, servername, port, username, password);
             res = curl_easy_perform(curl);
@@ -675,13 +695,10 @@ class EmailSenderProgram : public GlobalMethodClass {
 
             if (res == CURLE_OK && responseCode == 250) {
               WriteToFile(SentEmail, lead);
-              EmailSuccessMessage(sendername, subject, lead);
+              SMSSuccessMessage(sendername, lead);
               SentCount++;
               errorCount = 0;
             }
-          } else {
-            WriteToFile(FailedLeadsFile, lead);
-            errorCount = 0;
           }
         }
       }
@@ -766,15 +783,19 @@ class EmailSenderProgram : public GlobalMethodClass {
         long responseCode;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
         if (responseCode == 250) {
-          std::cout << "=============================    SMTP TEST    ============================= \n"
+          std::cout << " \033[32m"
+                    << "=============================    SMTP TEST    ============================= \n"
                     << smtp << std::endl
-                    << "============================= TEST SUCCESSFUL ============================= \n\n";
+                    << "============================= TEST SUCCESSFUL ============================= \n\n"
+                    << "\033[0m";
           validsmtp.insert(smtp);
           totalvalid++;
         } else {
-          std::cout << "=============================    SMTP TEST    ============================= \n"
+          std::cout << "\033[31m"
+                    << "=============================    SMTP TEST    ============================= \n"
                     << smtp << std::endl
-                    << "=============================   TEST FAILED   ============================= \n\n";
+                    << "=============================   TEST FAILED   ============================= \n\n"
+                    << "\033[0m";
           totaldeadsmtp++;
           invalidsmtp.insert(smtp);
         }
@@ -1288,7 +1309,9 @@ class SMSGatewaySenderProgram : public GlobalMethodClass {
 };
 
 int main(void) {
-  std::cout << "\033[2J\033[H";
+  std::cout << "\033[2J\033[H"
+            << "\033[92m"
+            << "\033[1m";
   GlobalMethodClass GlobalMethodObject;
   EmailSenderProgram EmailProgramObject;
   SMSGatewaySenderProgram SMSGatewaySenderProgram;
@@ -1347,7 +1370,7 @@ int main(void) {
                 << "Phone Number lead filename (Example: filename.txt): ";
       std::cin >> optionStr;
 
-      if (EmailProgramObject.EmailToSMSSender(optionStr)) {
+      if (EmailProgramObject.MailSMSSender(optionStr)) {
         sleep(1);
         std::cout << "\033[2J\033[H";
         std::cout << "Email to SMS Sender program completed.\n";
@@ -1543,5 +1566,9 @@ int main(void) {
       GlobalMethodObject.prompt();
       break;
   }
+  std::cout
+      << " \033[0m"
+      << "\033[0m\n"
+      << "\033[2J\033[H";
   return 0;
 }
