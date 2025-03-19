@@ -312,7 +312,7 @@ class GlobalMethodClass {
     ChildProgramDirectory = MakeAndGetDirectory(BaseProgramDirectory, ChildProgramDirectory);
     ProgramAttributeDirectory = MakeAndGetDirectory(ChildProgramDirectory, ProgramAttributeDirectory);
     Junks = MakeAndGetDirectory(ChildProgramDirectory, Junks);
-    return (!BaseProgramDirectory.empty() || !ChildProgramDirectory.empty() || !ProgramAttributeDirectory.empty() || !Junks.empty()) ? true : false;
+    return (!BaseProgramDirectory.empty() && !ChildProgramDirectory.empty() && !ProgramAttributeDirectory.empty() && !Junks.empty()) ? true : false;
   }
 
   // #: 13
@@ -355,10 +355,10 @@ class GlobalMethodClass {
   // #: 16
   void SMSSuccessMessage(std::string& sendername, std::string& lead) {
     std::cout
-        << "=================================> ECHOBLAST SMS SENDER <================================="
+        << "=================================>   MESSAGE SENT SUCCESSFUL   <=================================\n"
         << "SENDER NAME: " << sendername << std::endl
         << "RECIPIENT MAIL SMS: " << lead << std::endl
-        << "=================================> ECHOBLAST SMS SENDER <=================================\n\n";
+        << "=================================>  ECHOBLAST MAIL SMS SENDER  <=================================\n\n";
   }
 
   // #: 17
@@ -649,8 +649,8 @@ class EmailSenderProgram : public GlobalMethodClass {
 
   // #: 2 Email to SMS Sender
   bool MailSMSSender(std::string& LeadsFile) {
-    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "smtps.txt") ||
-        !ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt")) {
+    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, fs::path(SMSMailDataDirectory) / "smtps.txt") ||
+        !ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(SMSMailDataDirectory) / "sendername.txt")) {
       std::cerr << "Mail SMS Asset Files Cannot Be Empty \n";
       sleep(1);
       return false;
@@ -671,6 +671,8 @@ class EmailSenderProgram : public GlobalMethodClass {
     std::string& password = SMTPAttributeObject.password;
     std::string sendername, letter;
     std::vector<std::string> LeadsVector;
+    std::cout << "This is the part to debug" << std::endl;
+    std::cout << LeadFileDirectory << std::endl;
     if (!ReadFileToVector(LeadsVector, LeadFileDirectory)) {
       std::cerr << "Program Failed To Access " << LeadFileDirectory << std::endl;
       return false;
@@ -693,20 +695,25 @@ class EmailSenderProgram : public GlobalMethodClass {
       std::cout << "\033[2J\033[H";
       std::cout << "\t\t[EMAIL TO SMS SENDER INITIALIZED]\n\n";
       sleep(1);
-      const std::string data =
-          "From: +1234567890\r\n"  // Set your phone number as sender
-          "\r\n" +
-          letter +
-          "\r\n";
+
       for (auto& lead : LeadsVector) {
+        const std::string data =
+            "From: " + sendername + " <" + username + ">\r\n" +
+            "To: " + lead + "\r\n" +
+            "Subject: SMS Notification\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: text/plain; charset=UTF-8\r\n" +
+            "\r\n" +
+            letter +
+            "\r\n";
         sendername = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
         recipients_list = curl_slist_append(recipients_list, lead.c_str());
         curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients_list);
-        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, "<+1234567890>");
+        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
         curl_easy_setopt(curl, CURLOPT_READDATA, &data);
         curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
 
         res = curl_easy_perform(curl);
