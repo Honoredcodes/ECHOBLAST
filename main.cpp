@@ -23,7 +23,7 @@
 
 namespace fs = std::filesystem;
 int main();
-
+void clearScreenWithMessage(const std::string& message);
 void sleep(const int& x) {
   std::this_thread::sleep_for(std::chrono::seconds(x));
 }
@@ -672,7 +672,8 @@ public:
     }
 
     if (totalSMTP > 1) {
-      std::cout << "\033[2J\033[HTotal SMTP detected: " << totalSMTP << "\n"
+      std::cout << "\033[2J\033[H"
+        << "Total SMTP detected: " << totalSMTP << "\n"
         << "Set rate limit per SMTP (Y/N)? ";
       std::cin >> tmp;
       if (tmp == "Y" || tmp == "y") {
@@ -694,8 +695,9 @@ public:
 
     SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
       SMTPAttributeObject.username, SMTPAttributeObject.password);
-
+    clearScreenWithMessage("\t\t[EMAIL SENDER INITIALIZED]\n");
     for (const auto& lead : leads) {
+      sleep(10);
       if (rateLimit > 0 && rateCount >= rateLimit) {
         if (!FETCHSMTP(SMTPVectorObject.MailDataSetVector, currentSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
           std::cout << "All SMTPs exhausted.\n";
@@ -748,15 +750,16 @@ public:
 
       curl_slist_free_all(recipients);
       recipients = nullptr;
+
     }
 
     std::cout << "TOTAL SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
     curl_easy_cleanup(curl);
     curl_global_cleanup();
     LeadFinalCleanUp(leadPath, sentFile, failedFile);
-    sleep(2);
     return true;
   }
+
   // #: 2 Email to SMS Sender
   bool MailSMSSender(std::string& LeadsFile) {
     if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, fs::path(SMSMailDataDirectory) / "smtps.txt") ||
@@ -807,6 +810,8 @@ public:
       sleep(1);
 
       for (auto& lead : LeadsVector) {
+        std::cout << "Sleeping for 10 seconds\n";
+        sleep(10);
         const std::string data =
           "From: " + sendername + " <" + username + ">\r\n" +
           "To: " + lead + "\r\n" +
@@ -869,6 +874,7 @@ public:
             }
           }
         }
+
       }
       std::cout << "Total successfully sent email to " << SentCount << " Leads \n";
       curl_easy_cleanup(curl);
@@ -1076,7 +1082,7 @@ int main(void) {
     << "2. Email to SMS Sender\n"
     << "3. SMTP Live Tester\n"
     << "4. Remove Duplicates\n"
-    << "5. Email Extractor\n"
+    << "5. Email Extractor\n\n"
     << "Choose a program(0 to terminate): ";
   std::cin >> option;
 
@@ -1086,6 +1092,7 @@ int main(void) {
       << "\033[2J\033[H"
       << "Terminating program...\n";
     sleep(1);
+    std::cout << "\033[2J\033[H";
     return 0;
   case 1: {
     // 1 EMAIL SENDER
@@ -1093,7 +1100,7 @@ int main(void) {
       std::cerr << "Error: Program failed to create Email Sender directories\n";
       return 1;
     }
-    clearScreenWithMessage("\t\t[EMAIL SENDER INITIALIZED]");
+    clearScreenWithMessage("\t\t[EMAIL SENDER IN PROCESS]\n");
     UseHTML = askYesNoQuestion("Are you using HTML Letter");
     UseAttachment = askYesNoQuestion("Are you using Attachment");
 
