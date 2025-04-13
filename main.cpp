@@ -125,13 +125,46 @@ public:
       return false;
     }
     CurrentSmtp = Vector.front();
+    std::string portStr;
     std::stringstream ss(CurrentSmtp);
-    std::getline(ss, servername, '|');
-    ss >> port;
-    ss.ignore();
-    std::getline(ss, username, '|');
-    std::getline(ss, password);
-    Vector.erase(Vector.begin());
+    if (!std::getline(ss, servername, '|')) return false;
+    if (!std::getline(ss, portStr, '|')) return false;
+    if (!std::getline(ss, username, '|')) return false;
+    if (!std::getline(ss, password)) return false;
+
+    try {
+      port = std::stoi(portStr);
+    }
+    catch (const std::exception& e) {
+      std::cerr << "Port failed to parse because " << e.what() << std::endl;
+      return false;
+    }
+    return true;
+  }
+
+  // THIS IS A TEMP FUNCTION TO FETCH SMTP IN NEXT LINES
+  bool LOADSMTP(std::vector<std::string>& Vector, std::string& CurrentSmtp, std::string&, std::string& servername, int& port, std::string& username, std::string& password, int& index) {
+    if (Vector.empty()) {
+      return false;
+    }
+    if (index >= Vector.size()) {
+      index = 0;
+    }
+    CurrentSmtp = Vector[index];
+    std::string portStr;
+    std::stringstream ss(CurrentSmtp);
+    if (!std::getline(ss, servername, '|')) return false;
+    if (!std::getline(ss, portStr, '|')) return false;
+    if (!std::getline(ss, username, '|')) return false;
+    if (!std::getline(ss, password)) return false;
+
+    try {
+      port = std::stoi(portStr);
+    }
+    catch (const std::exception& e) {
+      std::cerr << "Port failed to parse because " << e.what() << std::endl;
+      return false;
+    }
     return true;
   }
 
@@ -464,12 +497,15 @@ public:
     }
     return true;
   }
-
   void SetCurlForMail(CURL*& curl, std::string servername, int port, std::string username, std::string password) {
-    curl_easy_setopt(curl, CURLOPT_URL, ("smtp://" + servername + ":" + std::to_string(port)).c_str());
+    std::string protocol = (port == 465) ? "smtps://" : "smtp://";
+    std::string url = protocol + servername + ":" + std::to_string(port);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_USERNAME, username.c_str());
     curl_easy_setopt(curl, CURLOPT_PASSWORD, password.c_str());
     curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_ALL);
+    curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+    // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); // for debugging
   }
 
   std::string GenerateUUID() {
@@ -695,6 +731,10 @@ public:
 
     SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
       SMTPAttributeObject.username, SMTPAttributeObject.password);
+    std::cout << SMTPAttributeObject.servername
+      << std::endl << SMTPAttributeObject.username
+      << std::endl << SMTPAttributeObject.port
+      << std::endl << SMTPAttributeObject.password << std::endl;
     clearScreenWithMessage("\t\t[EMAIL SENDER INITIALIZED]\n");
     for (const auto& lead : leads) {
       sleep(10);
