@@ -2,7 +2,7 @@
 #include <json/json.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-
+#include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
@@ -24,6 +24,9 @@
 namespace fs = std::filesystem;
 int main();
 void clearScreenWithMessage(const std::string& message);
+void clearScreen() {
+  std::cout << "\033[2J\033[H";
+}
 void sleep(const int& x) {
   std::this_thread::sleep_for(std::chrono::seconds(x));
 }
@@ -48,9 +51,20 @@ void PrintTopMiddle(const std::string text) {
   int textStartPos = (terminalWidth - text.length()) / 2;
 
   std::cout << "\033[1;1H";
-  std::cout << std::string(textStartPos, ' ') << text
-    << std::endl
-    << std::endl;
+  std::cout << std::string(textStartPos, ' ') << text << std::endl << std::endl;
+}
+
+void POPDATA(std::vector<std::string>& Vec, std::string data) {
+  try {
+    auto find = std::find(Vec.begin(), Vec.end(), data);
+    if (find != Vec.end()) {
+      Vec.erase(find);
+      Vec.shrink_to_fit();
+    }
+  }
+  catch (std::exception& e) {
+    return;
+  }
 }
 
 class cURLHandler {
@@ -99,9 +113,9 @@ public:
   bool ReadFileToVector(std::vector<std::string>& FileVector, const std::string& filepath) {
     std::fstream FileData(filepath, std::ios::in);
     if (!FileData) {
-      std::cerr << "Program Failed To Access " << filepath << std::endl;
       return false;
     }
+
     std::string line;
     while (std::getline(FileData, line)) {
       if (!line.empty()) {
@@ -120,13 +134,13 @@ public:
   }
 
   // #: 4
-  bool FETCHSMTP(std::vector<std::string>& Vector, std::string& CurrentSmtp, std::string& servername, int& port, std::string& username, std::string& password) {
+  bool FETCHSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password) {
     if (Vector.empty()) {
       return false;
     }
-    CurrentSmtp = Vector.front();
+    CURRENTSMTP = Vector.front();
     std::string portStr;
-    std::stringstream ss(CurrentSmtp);
+    std::stringstream ss(CURRENTSMTP);
     if (!std::getline(ss, servername, '|')) return false;
     if (!std::getline(ss, portStr, '|')) return false;
     if (!std::getline(ss, username, '|')) return false;
@@ -143,16 +157,16 @@ public:
   }
 
   // THIS IS A TEMP FUNCTION TO FETCH SMTP IN NEXT LINES
-  bool LOADSMTP(std::vector<std::string>& Vector, std::string& CurrentSmtp, std::string&, std::string& servername, int& port, std::string& username, std::string& password, int& index) {
+  bool LOADSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password, int& index) {
     if (Vector.empty()) {
       return false;
     }
     if (index >= Vector.size()) {
       index = 0;
     }
-    CurrentSmtp = Vector[index];
+    CURRENTSMTP = Vector[index];
     std::string portStr;
-    std::stringstream ss(CurrentSmtp);
+    std::stringstream ss(CURRENTSMTP);
     if (!std::getline(ss, servername, '|')) return false;
     if (!std::getline(ss, portStr, '|')) return false;
     if (!std::getline(ss, username, '|')) return false;
@@ -207,11 +221,11 @@ public:
   }
 
   // #: 7
-  void LeadFinalCleanUp(std::string& leadfile, std::string sentleads, std::string failedleads) {
-    std::ifstream leadfiledata(leadfile);
-    std::ifstream sentleadsdata(sentleads);
-    std::ifstream failedleadsdata(failedleads);
-    if (!leadfiledata || !sentleadsdata || !failedleadsdata) {
+  void DATACLEANUP(std::string& leadfile, std::string sentleads, std::string failedleads) {
+    std::ifstream newfile(leadfile);
+    std::ifstream sentfiles(sentleads);
+    std::ifstream failedfiles(failedleads);
+    if (!newfile || !sentfiles || !failedfiles) {
       std::cerr << "Error: Unable to open these files.\n"
         << leadfile << std::endl
         << sentleads << std::endl
@@ -221,17 +235,17 @@ public:
     std::unordered_set<std::string> leadset;
     std::string line;
 
-    while (std::getline(leadfiledata, line)) {
+    while (std::getline(newfile, line)) {
       if (!line.empty()) {
         leadset.insert(line);
       }
     }
-    while (std::getline(sentleadsdata, line)) {
+    while (std::getline(sentfiles, line)) {
       if (!line.empty()) {
         leadset.erase(line);
       }
     }
-    while (std::getline(failedleadsdata, line)) {
+    while (std::getline(failedfiles, line)) {
       if (!line.empty()) {
         leadset.erase(line);
       }
@@ -250,9 +264,9 @@ public:
         << "Remaining leads: " << leadset.size() << std::endl;
     }
     leadfileout.close();
-    leadfiledata.close();
-    sentleadsdata.close();
-    failedleadsdata.close();
+    newfile.close();
+    sentfiles.close();
+    failedfiles.close();
   }
 
   // #: 8
@@ -326,7 +340,7 @@ public:
   // #: 11
   void prompt() {
     std::string optionStr;
-    std::cout << "Do you want to retry the program? (Y/N): ";
+    std::cout << std::endl << "Do you want to retry the program? (Y/N): ";
     std::cin >> optionStr;
     if (optionStr == "Y" || optionStr == "y") {
       main();
@@ -335,7 +349,7 @@ public:
       std::cout << "Program terminating...\n";
     }
     sleep(1);
-    std::cout << "\033[2J\033[H";
+    clearScreen();
   }
 
   // #: 12
@@ -375,14 +389,36 @@ public:
   }
 
   // #: 15
-  void EmailSuccessMessage(const std::string sendername, const std::string subject, const std::string lead, const int count) {
+  void EMAILSUCCESSMESSAGE(const std::string sendername, const std::string subject, const std::string lead, const int count) {
     std::cout
-      << "=================================>   EMAIL SENT SUCCESSFUL  <=================================\n"
-      << "> COUNT: [" << count << "]\n"
-      << "> SENDER NAME: " << sendername << std::endl
-      << "> SUBJECT TITLE: " << subject << std::endl
-      << "> RECIPIENT EMAIL: " << lead << std::endl
-      << "=================================>  ECHOBLAST EMAIL SENDER  <=================================\n\n";
+      << "\033[92m"
+      << "=================================>   "
+      << "\033[91m"
+      << "\033[1m"
+      << "EMAIL SENT SUCCESSFUL  "
+      << "\033[92m"
+      << "<=================================\n"
+
+      << "\033[92m" << "> COUNT: "
+      << "\033[93m" << "[" << count << "]\n"
+
+      << "\033[92m" << "> SENDER NAME: "
+      << "\033[93m" << sendername << "\n"
+
+      << "\033[92m" << "> SUBJECT TITLE: "
+      << "\033[93m" << subject << "\n"
+
+      << "\033[92m" << "> RECIPIENT EMAIL: "
+      << "\033[93m" << lead << "\n"
+
+      << "\033[92m"
+      << "=================================>  "
+      << "\033[91m"
+      << "\033[1m"
+      << "ECHOBLAST EMAIL SENDER  "
+      << "\033[92m"
+      << "<=================================\n\n"
+      << "\033[0m";
   }
 
   // #: 16
@@ -663,14 +699,20 @@ public:
 
   // #: 1 Email Sender
   bool EmailSender(bool useHTML, bool useAttachment) {
-    std::string attachmentPath;
-    std::string leadPath = fs::path(EmailDataDirectory) / "leads.txt";
+    clearScreen();
+    bool success = false;
+    std::string LEADSFILE = fs::path(EmailDataDirectory) / "leads.txt";
     std::string letterPath = fs::path(EmailDataDirectory) / "letter.txt";
-    std::string sentFile = fs::path(EmailDataDirectory) / "sent.txt";
-    std::string failedFile = fs::path(EmailJunkDirectory) / "failed.txt";
-    std::string deadSMTPFile = fs::path(EmailJunkDirectory) / "deadsmtp.txt";
-
-    std::string emailBody, attachmentFileName, currentSMTP, boundary;
+    std::string SENTLEADSFILE = fs::path(EmailDataDirectory) / "sentleads.txt";
+    std::string FAILEDLEADFILE = fs::path(EmailJunkDirectory) / "failedleads.txt";
+    std::string DEADSMTPFILE = fs::path(EmailJunkDirectory) / "deadsmtp.txt";
+    std::string LIMITEDSMTP = fs::path(EmailJunkDirectory) / "smtp_under_limit.txt";
+    std::string SMTPFILES = fs::path(EmailDataDirectory) / "smtps.txt";
+    std::string SENDERNAMESFILE = fs::path(EmailDataDirectory) / "sendername.txt";
+    std::string SUBJECTSFILE = fs::path(EmailDataDirectory) / "subject.txt";
+    std::string attachmentPath, emailBody, attachmentFileName, sender, subject, CURRENTSMTP, boundary;
+    int sentCount = 0, errorCount = 0, rateLimit = 0, rateCount = 0, index = 0;
+    int sendspeed, totalSMTP = SMTPVectorObject.MailDataSetVector.size();
     long responseCode;
 
     if (useAttachment) {
@@ -681,42 +723,50 @@ public:
       attachmentFileName = fs::path(attachmentPath) / filename;
     }
 
-    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "smtps.txt") ||
-      !ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt") ||
-      !ReadFileToVector(SubjectVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "subject.txt")) {
+    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPFILES) ||
+      !ReadFileToVector(NameVectorObject.MailDataSetVector, SENDERNAMESFILE) ||
+      !ReadFileToVector(SubjectVectorObject.MailDataSetVector, SUBJECTSFILE)) {
       std::cerr << "Email Assets Files Cannot Be Empty\n";
       sleep(1);
       return false;
     }
 
-    if (!FETCHSMTP(SMTPVectorObject.MailDataSetVector, currentSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
-      std::cerr << "SMTP not found or exhausted.\n";
+    if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+      std::cerr << "SMTP NOT FOUND OR FINISHED.\n";
       return false;
     }
 
-    int sentCount = 0, errorCount = 0, rateLimit = 0, rateCount = 0;
-    int totalSMTP = SMTPVectorObject.MailDataSetVector.size();
+
     std::string tmp;
 
     if (!ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt") ||
       !ReadFileToVector(SubjectVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "subject.txt")) return false;
 
     std::vector<std::string> leads;
-    if (!ReadFileToVector(leads, leadPath)) {
-      std::cerr << "Failed to open: " << leadPath << std::endl;
+    if (!ReadFileToVector(leads, LEADSFILE)) {
+      std::cerr << "FAILED TO ACCESS LEADS FILE.\n";
       return false;
     }
 
+    clearScreen();
     if (totalSMTP > 1) {
-      std::cout << "\033[2J\033[H"
-        << "Total SMTP detected: " << totalSMTP << "\n"
-        << "Set rate limit per SMTP (Y/N)? ";
+      clearScreen();
+      std::cout << totalSMTP << " SMTPS FOUND.\n"
+        << "Do you wanna set rate limit (Y/N): ";
       std::cin >> tmp;
       if (tmp == "Y" || tmp == "y") {
-        std::cout << "Specify send rate limit (0 for no limit): ";
+        std::cout << "Specify send rate limit : ";
         std::cin >> rateLimit;
       }
     }
+
+    clearScreen();
+    std::cout << "[SEND SPEED LIMIT PRESERVES SMTP LIFE]\n"
+      << "[SPEED LIMIT WORKS IN SECONDS]\n"
+      << "Set speed delay limit (default: 2): ";
+    std::cin >> sendspeed;
+    sendspeed = (sendspeed > 2) ? sendspeed : 2;
+
 
     std::string letter;
     FetchDataFromFile(letterPath, letter);
@@ -729,31 +779,31 @@ public:
     curl = curl_easy_init();
     if (!curl) return false;
 
-    SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
-      SMTPAttributeObject.username, SMTPAttributeObject.password);
-    std::cout << SMTPAttributeObject.servername
-      << std::endl << SMTPAttributeObject.username
-      << std::endl << SMTPAttributeObject.port
-      << std::endl << SMTPAttributeObject.password << std::endl;
-    clearScreenWithMessage("\t\t[EMAIL SENDER INITIALIZED]\n");
+    SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
+    clearScreenWithMessage("\t\t\t[EMAIL SENDER INITIALIZED]\n");
+
     for (const auto& lead : leads) {
-      sleep(10);
+      if (sentCount > 0) {
+        sleep(sendspeed);
+      }
+
       if (rateLimit > 0 && rateCount >= rateLimit) {
-        if (!FETCHSMTP(SMTPVectorObject.MailDataSetVector, currentSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
-          std::cout << "All SMTPs exhausted.\n";
+        if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+          std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n";
+          std::cout << "LOAD MORE SMTP AND RETRY PROGRAM\n";
+          if (sentCount <= 0) {
+            return false;
+          }
           break;
         }
-        SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
-          SMTPAttributeObject.username, SMTPAttributeObject.password);
+        SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
         rateCount = 0;
       }
 
-      std::string sender = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
-      std::string subject = GetRandomDataFromVector(SubjectVectorObject.MailDataSetVector);
+      sender = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
+      subject = GetRandomDataFromVector(SubjectVectorObject.MailDataSetVector);
 
-      MakeEmailBody(emailBody, useHTML, useAttachment, boundary,
-        SMTPAttributeObject.servername, sender, SMTPAttributeObject.username,
-        subject, letter, lead, attachmentFileName);
+      MakeEmailBody(emailBody, useHTML, useAttachment, boundary, SMTPAttributeObject.servername, sender, SMTPAttributeObject.username, subject, letter, lead, attachmentFileName);
 
       recipients = curl_slist_append(nullptr, lead.c_str());
       curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
@@ -762,41 +812,52 @@ public:
       curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
       curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
       curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
-
       res = curl_easy_perform(curl);
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
 
       if (res == CURLE_OK && responseCode == 250) {
-        WriteDataToFile(sentFile, lead);
+        success = true;
+        WriteDataToFile(SENTLEADSFILE, lead);
         sentCount++;
         rateCount++;
-        EmailSuccessMessage(sender, subject, lead, sentCount);
-        errorCount = 0;
+        EMAILSUCCESSMESSAGE(sender, subject, lead, sentCount);
       }
       else {
-        errorCount++;
-        WriteDataToFile((errorCount <= 3) ? failedFile : deadSMTPFile, lead);
-
-        if (errorCount >= 4) {
-          if (!FETCHSMTP(SMTPVectorObject.MailDataSetVector, currentSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
-            std::cout << "All SMTPs dead. Total sent: " << sentCount << "\n";
+        if (res == CURLE_LOGIN_DENIED && responseCode == 535 || responseCode == 530 || responseCode == 534) {
+          WriteDataToFile(DEADSMTPFILE, CURRENTSMTP);
+          POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
+          if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+            std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
+              << "LOAD MORE SMTP AND RETRY PROGRAM\n"
+              << "LOGIN DENIED\n";
             break;
           }
-          SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
-            SMTPAttributeObject.username, SMTPAttributeObject.password);
-          errorCount = 0;
         }
+        else if (res == CURLE_RECV_ERROR || res == CURLE_SEND_ERROR && responseCode == 452 || responseCode == 421 || responseCode == 451 || responseCode == 550) {
+          WriteDataToFile(LIMITEDSMTP, CURRENTSMTP);
+          POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
+          if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+            std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
+              << "LOAD MORE SMTP AND RETRY PROGRAM\n"
+              << "RATE LIMIT HIT\n";
+            break;
+          }
+        }
+        SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
       }
-
       curl_slist_free_all(recipients);
       recipients = nullptr;
-
     }
 
-    std::cout << "TOTAL SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
+
     curl_easy_cleanup(curl);
     curl_global_cleanup();
-    LeadFinalCleanUp(leadPath, sentFile, failedFile);
+    DATACLEANUP(LEADSFILE, SENTLEADSFILE, FAILEDLEADFILE);
+    DATACLEANUP(SMTPFILES, LIMITEDSMTP, DEADSMTPFILE);
+    if (!success) {
+      return false;
+    }
+    std::cout << "TOTAL SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
     return true;
   }
 
@@ -813,8 +874,8 @@ public:
     std::string SentEmail = fs::path(SMSMailDataDirectory) / "sent.txt";
     std::string FailedLeadsFile = fs::path(SMSMailJunkDirectory) / "failed.txt";
     std::string DeadSMTPsFile = fs::path(SMSMailJunkDirectory) / "deadsmtp.txt";
-    std::string CurrentSmtp;
-    if (!FETCHSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
+    std::string CURRENTSMTP;
+    if (!FETCHSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password)) {
       std::cout << "SMTP not found or exhuasted.\n";
       return false;
     }
@@ -845,7 +906,7 @@ public:
     }
     if (curl) {
       SetCurlForMail(curl, servername, port, username, password);
-      std::cout << "\033[2J\033[H";
+      clearScreen();
       std::cout << "\t\t[EMAIL TO SMS SENDER INITIALIZED]\n\n";
       sleep(1);
 
@@ -887,13 +948,13 @@ public:
             WriteDataToFile(FailedLeadsFile, lead);
           }
           else if (errorCount >= 4 && errorCount <= 6) {
-            WriteDataToFile(DeadSMTPsFile, CurrentSmtp);
-            if (!FETCHSMTP(SMTPVectorObject.MailDataSetVector, CurrentSmtp, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password) && SentCount > 0) {
+            WriteDataToFile(DeadSMTPsFile, CURRENTSMTP);
+            if (!FETCHSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password) && SentCount > 0) {
               std::cout << "SMTP not found or finished....\n"
                 << "Total successfully sent email to " << SentCount << " Leads\n";
               curl_slist_free_all(recipients_list);
               recipients_list = nullptr;
-              LeadFinalCleanUp(LeadFileDirectory, SentEmail, FailedLeadsFile);
+              DATACLEANUP(LeadFileDirectory, SentEmail, FailedLeadsFile);
               return true;
             }
             else {
@@ -920,7 +981,7 @@ public:
       curl_easy_cleanup(curl);
     }
     curl_global_cleanup();
-    LeadFinalCleanUp(LeadFileDirectory, SentEmail, FailedLeadsFile);
+    DATACLEANUP(LeadFileDirectory, SentEmail, FailedLeadsFile);
     return true;
   }
 
@@ -942,8 +1003,8 @@ public:
     std::cin >> TestEmailAddr;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    std::cout << "\033[2J\033[H"
-      << "SMTP Live Tester Initialized...\n"
+    clearScreen();
+    std::cout << "SMTP Live Tester Initialized...\n"
       << "Please wait while the program is testing the SMTPs...\n\n";
     sleep(1);
 
@@ -1087,7 +1148,8 @@ public:
 };
 
 void clearScreenWithMessage(const std::string& message) {
-  std::cout << "\033[2J\033[H" << message << "\n";
+  clearScreen();
+  std::cout << message << "\n";
 }
 
 bool askYesNoQuestion(const std::string& question) {
@@ -1100,30 +1162,31 @@ bool askYesNoQuestion(const std::string& question) {
 void handleProgramCompletion(bool success, const std::string& programName) {
   sleep(1);
   if (success) {
-    std::cout << programName << " program completed.\n";
+    std::cout << programName << " PROGRAM COMPLETED.\n";
   }
   else {
-    std::cout << programName << " program failed.\n";
+    std::cout << programName << " PROGRAM FAILED.\n";
   }
 }
 
 int main(void) {
-  std::cout << "\033[2J\033[H"
-    << "\033[92m"
-    << "\033[1m";
   GlobalMethodClass GlobalMethodObject;
   EmailSenderProgram EmailProgramObject;
   std::string optionStr;
   bool UseAttachment, UseHTML;
   int option;
+  clearScreen();
 
-  std::cout << "\t\t[ECHOBLAST V1 : TELEGRAM H4CKECHO]\n\n"
-    << "1. Email Sender \n"
-    << "2. Email to SMS Sender\n"
-    << "3. SMTP Live Tester\n"
-    << "4. Remove Duplicates\n"
-    << "5. Email Extractor\n\n"
-    << "Choose a program(0 to terminate): ";
+  std::cout << "\033[91m"
+    << "\033[1m"
+    << "\t\t[ECHOBLAST V1 : TELEGRAM H4CKECHO]\n\n"
+    << "\033[94m" << "[1] " << "\033[93m" << "EMAIL SENDER\n"
+    << "\033[94m" << "[2] " << "\033[93m" << "EMAIL TO SMS SENDER\n"
+    << "\033[94m" << "[3] " << "\033[93m" << "SMTP LIVE TESTER\n"
+    << "\033[94m" << "[4] " << "\033[93m" << "REMOVE DUPLICATES\n"
+    << "\033[94m" << "[5] " << "\033[93m" << "EMAIL EXTRACTOR\n\n"
+    << "\033[92m" << "\033[1m" << "CHOOSE A PROGRAM [0 END PROGRAM]: ";
+
   std::cin >> option;
 
   switch (option) {
@@ -1132,7 +1195,7 @@ int main(void) {
       << "\033[2J\033[H"
       << "Terminating program...\n";
     sleep(1);
-    std::cout << "\033[2J\033[H";
+    clearScreen();
     return 0;
   case 1: {
     // 1 EMAIL SENDER
@@ -1141,11 +1204,11 @@ int main(void) {
       return 1;
     }
     clearScreenWithMessage("\t\t[EMAIL SENDER IN PROCESS]\n");
-    UseHTML = askYesNoQuestion("Are you using HTML Letter");
-    UseAttachment = askYesNoQuestion("Are you using Attachment");
+    UseHTML = askYesNoQuestion("ARE YOU SENDING HTML LETTER");
+    UseAttachment = askYesNoQuestion("ARE YOU USING ATTACHMENT");
 
     bool success = EmailProgramObject.EmailSender(UseHTML, UseAttachment);
-    handleProgramCompletion(success, "Email Sender");
+    handleProgramCompletion(success, "EMAIL SENDER");
     GlobalMethodObject.prompt();
     break;
   }
@@ -1178,8 +1241,8 @@ int main(void) {
 
   case 4: {
     // 4 REMOVE DUPLICATES
-    std::cout << "\033[2J\033[H"
-      << "Data to filter filename (Example: filename.txt): ";
+    clearScreen();
+    std::cout << "Data to filter filename (Example: filename.txt): ";
     std::cin >> optionStr;
 
     bool success = GlobalMethodObject.DuplicatesRemover(optionStr);
@@ -1202,8 +1265,8 @@ int main(void) {
   }
 
   default:
-    std::cout << "\033[2J\033[H"
-      << "Invalid option selected. \n";
+    clearScreen();
+    std::cout << "Invalid option selected. \n";
     GlobalMethodObject.prompt();
     break;
   }
