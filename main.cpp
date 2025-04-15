@@ -22,34 +22,31 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+
 int main();
+bool ValidDigit(const std::string& param);
 void clearScreenWithMessage(const std::string& message);
-void clearScreen() {
-  std::cout << "\033[2J\033[H";
-}
-void sleep(const int& x) {
-  std::this_thread::sleep_for(std::chrono::seconds(x));
-}
+void clearScreen() { std::cout << "\033[2J\033[H"; }
+void sleep(const int& x) { std::this_thread::sleep_for(std::chrono::seconds(x)); }
+
 size_t writeCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   ((std::string*)userp)->append((char*)contents, size * nmemb);
   return size * nmemb;
 }
 size_t readCallback(void* ptr, size_t size, size_t nmemb, void* userdata) {
   std::string* data = static_cast<std::string*>(userdata);
-  if (data->empty()) return 0;  // No more data to send
+  if (data->empty()) return 0;
 
   size_t toCopy = std::min(size * nmemb, data->size());
   memcpy(ptr, data->data(), toCopy);
-  data->erase(0, toCopy);  // Remove sent data
+  data->erase(0, toCopy);
   return toCopy;
 }
 void PrintTopMiddle(const std::string text) {
   struct winsize w;
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-
   int terminalWidth = w.ws_col;
   int textStartPos = (terminalWidth - text.length()) / 2;
-
   std::cout << "\033[1;1H";
   std::cout << std::string(textStartPos, ' ') << text << std::endl << std::endl;
 }
@@ -62,28 +59,18 @@ void POPDATA(std::vector<std::string>& Vec, std::string data) {
       Vec.shrink_to_fit();
     }
   }
-  catch (std::exception& e) {
-    return;
-  }
+  catch (std::exception& e) { return; }
 }
 
-class cURLHandler {
-private:
-  CURL* curl;
-
-public:
-  cURLHandler() {
-    curl = curl_easy_init();
-    CURLcode res;
-    if (!curl) {
-      throw std::runtime_error("Failed to initialize curl");
-    }
+bool ValidDigit(const std::string& param) {
+  char c;
+  for (size_t i = 0; i < param.length(); i++) {
+    c = param[i];
+    if (!isdigit(c))
+      return false;
   }
-
-  ~cURLHandler() {
-    if (curl) curl_easy_cleanup(curl);
-  }
-};
+  return true;
+}
 
 class GlobalMethodClass {
 public:
@@ -91,21 +78,14 @@ public:
   std::string MakeDirectory(const std::string& path, const std::string& folderName) {
     static std::set<std::string> createdFolders;
     fs::path fullPath = (path.empty()) ? fs::current_path() / folderName : fs::path(path) / folderName;
-
-    if (createdFolders.count(fullPath.string())) {
-      return fullPath.string();
-    }
-
+    if (createdFolders.count(fullPath.string())) { return fullPath.string(); }
     try {
       if (fs::create_directories(fullPath)) {
         createdFolders.insert(fullPath.string());
       }
       return fullPath.string();
     }
-    catch (const std::exception& e) {
-      std::cerr << "Failed to create folder: " << e.what() << std::endl;
-    }
-
+    catch (const std::exception& e) { std::cerr << "Failed to create folder: " << e.what() << std::endl; }
     return "";
   }
 
@@ -135,12 +115,12 @@ public:
 
   // #: 4
   bool FETCHSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password) {
-    if (Vector.empty()) {
-      return false;
-    }
+    if (Vector.empty()) return false;
+
     CURRENTSMTP = Vector.front();
     std::string portStr;
     std::stringstream ss(CURRENTSMTP);
+
     if (!std::getline(ss, servername, '|')) return false;
     if (!std::getline(ss, portStr, '|')) return false;
     if (!std::getline(ss, username, '|')) return false;
@@ -158,12 +138,10 @@ public:
 
   // THIS IS A TEMP FUNCTION TO FETCH SMTP IN NEXT LINES
   bool LOADSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password, int& index) {
-    if (Vector.empty()) {
-      return false;
-    }
-    if (index >= Vector.size()) {
-      index = 0;
-    }
+    if (Vector.empty()) return false;
+
+    if (index >= Vector.size()) index = 0;
+
     CURRENTSMTP = Vector[index];
     std::string portStr;
     std::stringstream ss(CURRENTSMTP);
@@ -260,8 +238,8 @@ public:
       for (const auto& lead : leadset) {
         leadfileout << lead << std::endl;
       }
-      std::cout << "Lead cleanup completed...\n"
-        << "Remaining leads: " << leadset.size() << std::endl;
+      std::cout << "LEAD CLEANUP COMPLETED.\n"
+        << leadset.size() << " REMAINING LEADS UNSENT." << std::endl;
     }
     leadfileout.close();
     newfile.close();
@@ -345,10 +323,6 @@ public:
     if (optionStr == "Y" || optionStr == "y") {
       main();
     }
-    else {
-      std::cout << "Program terminating...\n";
-    }
-    sleep(1);
     clearScreen();
   }
 
@@ -505,17 +479,17 @@ public:
   }
 
   bool PrepareSMTPLiveTesterDirectories() {
-    ProgramAttributeVector = { "smtps.txt", "failedsmtps.txt" };
+    ProgramAttributeVector = { "smtps.txt", "Failed.txt", "Live.txt" };
     SMTPLiveTesterDirectory = MakeDirectory(EmailSenderPrograms, SMTPLiveTesterDirectory);
     for (auto& file : ProgramAttributeVector) {
       std::string filePath = fs::path(SMTPLiveTesterDirectory) / file;
       std::fstream FileAccess(filePath, std::ios::app);
       if (!FileAccess) {
-        std::cerr << "Failed to create " << file << std::endl;
         return false;
       }
       FileAccess.close();
     }
+    ProgramAttributeVector.clear();
     return true;
   }
 
@@ -711,7 +685,7 @@ public:
     std::string SENDERNAMESFILE = fs::path(EmailDataDirectory) / "sendername.txt";
     std::string SUBJECTSFILE = fs::path(EmailDataDirectory) / "subject.txt";
     std::string attachmentPath, emailBody, attachmentFileName, sender, subject, CURRENTSMTP, boundary;
-    int sentCount = 0, errorCount = 0, rateLimit = 0, rateCount = 0, index = 0;
+    int sentCount = 0, errorCount = 0, rateLimit = 0, rateCount = 0, index = 0, retries = 0;
     int sendspeed, totalSMTP = SMTPVectorObject.MailDataSetVector.size();
     long responseCode;
 
@@ -817,6 +791,7 @@ public:
 
       if (res == CURLE_OK && responseCode == 250) {
         success = true;
+        retries = 0;
         WriteDataToFile(SENTLEADSFILE, lead);
         sentCount++;
         rateCount++;
@@ -834,13 +809,20 @@ public:
           }
         }
         else if (res == CURLE_RECV_ERROR || res == CURLE_SEND_ERROR && responseCode == 452 || responseCode == 421 || responseCode == 451 || responseCode == 550) {
-          WriteDataToFile(LIMITEDSMTP, CURRENTSMTP);
-          POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
-          if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-            std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
-              << "LOAD MORE SMTP AND RETRY PROGRAM\n"
-              << "RATE LIMIT HIT\n";
-            break;
+          if (retries > 5) {
+            WriteDataToFile(LIMITEDSMTP, CURRENTSMTP);
+            POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
+            if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+              std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
+                << "LOAD MORE SMTP AND RETRY PROGRAM\n"
+                << "RATE LIMIT HIT\n";
+              break;
+            }
+          }
+          else {
+            WriteDataToFile(FAILEDLEADFILE, lead);
+            retries++;
+            continue;
           }
         }
         SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
@@ -991,16 +973,16 @@ public:
     CURLcode res;
     int port, smtpAssignCounter = 0, totalvalid = 0, totaldeadsmtp = 0;
     std::unordered_set<std::string> invalidsmtp, validsmtp;
-    std::string optionStr, filename, servername, username, password, response, TestEmailAddr, boundary = "----=_Part_001_2345_67890";
-    std::string smtpsdir = fs::path(SMTPLiveTesterDirectory) / "smtps.txt", failedsmtpsdir = fs::path(SMTPLiveTesterDirectory) / "failedsmtps.txt";
-    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, smtpsdir)) {
-      std::cerr << "Error: failed to read data from " << smtpsdir << std::endl
-        << "Please check if file exit and not empty\n";
+    std::string optionStr, filename, servername, username, password, response, TESTEMAIL, boundary = "----=_Part_001_2345_67890";
+    std::string SMTPS = fs::path(SMTPLiveTesterDirectory) / "smtps.txt", FAILEDSMTPS = fs::path(SMTPLiveTesterDirectory) / "failedsmtps.txt", LIVESMTPS = fs::path(SMTPLiveTesterDirectory) / "Live.txt";
+
+    if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPS)) {
+      std::cerr << "SMTP NOT FOUND IN FILE [smtps.txt]\n";
       return false;
     }
 
     std::cout << "Enter a valid email address: ";
-    std::cin >> TestEmailAddr;
+    std::cin >> TESTEMAIL;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     clearScreen();
@@ -1021,7 +1003,7 @@ public:
         return false;
       }
       struct curl_slist* recipients = nullptr;
-      recipients = curl_slist_append(recipients, TestEmailAddr.c_str());
+      recipients = curl_slist_append(recipients, TESTEMAIL.c_str());
       response.clear();
       const std::string data =
         "Subject: SMTP Test OK\r\n"
@@ -1029,16 +1011,16 @@ public:
         username +
         ">\r\n"
         "To: <" +
-        TestEmailAddr +
+        TESTEMAIL +
         ">\r\n"
         "MIME-Version: 1.0\r\n"
         "Content-Type: text/plain; charset=UTF-8\r\n"
         "Message-ID: <" +
-        std::to_string(time(nullptr)) + "@" + smtp +
+        std::to_string(time(nullptr)) + "@" + username +
         ">\r\n"
         "\r\n"
         "Hello,\r\n" +
-        smtp +
+        username +
         "\r\n"
         "This is a test email to check SMTP configuration.\r\n"
         "\r\n"
@@ -1072,7 +1054,6 @@ public:
             << smtp << std::endl
             << "=============================   TEST FAILED   =============================\n\n"
             << "\033[92m";
-          totaldeadsmtp++;
           invalidsmtp.insert(smtp);
         }
       }
@@ -1086,31 +1067,26 @@ public:
       curl_easy_cleanup(curl);
       curl_slist_free_all(recipients);
     }
-    std::cout << "Total GOOD / LIVE smtps " << totalvalid << std::endl
-      << "Total BAD / DEAD smtps " << totaldeadsmtp << std::endl;
+    std::cout << totalvalid << " LIVE SMTPS FOUND." << std::endl;
     curl_global_cleanup();
-    std::fstream smtpfile(smtpsdir, std::ios::out), invalidsmtpfile(failedsmtpsdir, std::ios::out);
-    if (!smtpfile || !invalidsmtpfile) {
-      std::cout << "Failed to open output files for writing results.\n";
+
+    std::fstream AvailableSMTPFile(LIVESMTPS, std::ios::app), UnavailableSMTPFile(FAILEDSMTPS, std::ios::app);
+    if (!AvailableSMTPFile || !UnavailableSMTPFile) {
       std::cout << "[VALID SMTPS]" << std::endl;
       for (const auto& smtp : validsmtp) {
         std::cout << smtp << std::endl;
       }
       std::cout << "\n";
-      std::cout << "[INVALID SMTPS]" << std::endl;
-      for (const auto& smtp : invalidsmtp) {
-        std::cout << smtp << std::endl;
-      }
       return true;
     }
     for (const auto& smtp : validsmtp) {
-      smtpfile << smtp << std::endl;
+      AvailableSMTPFile << smtp << std::endl;
     }
     for (const auto& smtp : invalidsmtp) {
-      invalidsmtpfile << smtp << std::endl;
+      UnavailableSMTPFile << smtp << std::endl;
     }
-    smtpfile.close();
-    invalidsmtpfile.close();
+    AvailableSMTPFile.close();
+    UnavailableSMTPFile.close();
     return true;
   }
 
@@ -1169,36 +1145,54 @@ void handleProgramCompletion(bool success, const std::string& programName) {
   }
 }
 
-int main(void) {
-  GlobalMethodClass GlobalMethodObject;
-  EmailSenderProgram EmailProgramObject;
+void DisplayStartMenu(int& option) {
   std::string optionStr;
-  bool UseAttachment, UseHTML;
-  int option;
-  clearScreen();
-
   std::cout << "\033[91m"
     << "\033[1m"
-    << "\t\t[ECHOBLAST V1 : TELEGRAM H4CKECHO]\n\n"
+    << "\t\t[ECHO MAILER V1 : TELEGRAM H4CKECHO]\n\n"
     << "\033[94m" << "[1] " << "\033[93m" << "EMAIL SENDER\n"
     << "\033[94m" << "[2] " << "\033[93m" << "EMAIL TO SMS SENDER\n"
     << "\033[94m" << "[3] " << "\033[93m" << "SMTP LIVE TESTER\n"
     << "\033[94m" << "[4] " << "\033[93m" << "REMOVE DUPLICATES\n"
     << "\033[94m" << "[5] " << "\033[93m" << "EMAIL EXTRACTOR\n\n"
     << "\033[92m" << "\033[1m" << "CHOOSE A PROGRAM [0 END PROGRAM]: ";
+  std::cin >> optionStr;
+  if (!ValidDigit(optionStr)) {
+    do {
+      clearScreen();
+      std::cout << "Wrong input choice\nTry again with correct choice\n";
+      sleep(1);
+      DisplayStartMenu(option);
+    } while (!ValidDigit(optionStr));
+  }
+  option = std::stoi(optionStr);
+}
 
-  std::cin >> option;
+void TerminateProgram() {
+  std::cout
+    << "\033[2J\033[H"
+    << "Terminating program...\n";
+  sleep(1);
+  clearScreen();
+}
+
+int main(void) {
+  GlobalMethodClass GlobalMethodObject;
+  EmailSenderProgram EmailProgramObject;
+  std::string optionStr;
+  bool UseAttachment, UseHTML;
+  int option;
+
+  clearScreen();
+  DisplayStartMenu(option);
 
   switch (option) {
-  case 0:
-    std::cout
-      << "\033[2J\033[H"
-      << "Terminating program...\n";
-    sleep(1);
-    clearScreen();
+  case 0: {
+    TerminateProgram();
     return 0;
+  }
+
   case 1: {
-    // 1 EMAIL SENDER
     if (!EmailProgramObject.PrepareEmailSenderDirectories()) {
       std::cerr << "Error: Program failed to create Email Sender directories\n";
       return 1;
@@ -1210,11 +1204,11 @@ int main(void) {
     bool success = EmailProgramObject.EmailSender(UseHTML, UseAttachment);
     handleProgramCompletion(success, "EMAIL SENDER");
     GlobalMethodObject.prompt();
+    TerminateProgram();
     break;
   }
 
   case 2: {
-    // 2 EMAIL TO SMS SENDER
     if (!EmailProgramObject.PrepareEmailToSMSDirectories()) {
       std::cerr << "Error: Program failed to create Email to SMS directories\n";
       return 1;
@@ -1226,21 +1220,24 @@ int main(void) {
     bool success = EmailProgramObject.MailSMSSender(optionStr);
     handleProgramCompletion(success, "Email to SMS Sender");
     GlobalMethodObject.prompt();
+    TerminateProgram();
     break;
   }
 
   case 3: {
-    // 3 SMTP LIVE TESTER
-    EmailProgramObject.PrepareSMTPLiveTesterDirectories();
+    if (!EmailProgramObject.PrepareSMTPLiveTesterDirectories()) {
+      std::cout << "Program runtime error, please restart program.\n";
+      GlobalMethodObject.prompt();
+    }
     clearScreenWithMessage("\t\t[SMTP LIVE TESTER INITIALIZED]");
     bool success = EmailProgramObject.SMTPLiveTester();
     handleProgramCompletion(success, "SMTP Live Tester");
     GlobalMethodObject.prompt();
+    TerminateProgram();
     break;
   }
 
   case 4: {
-    // 4 REMOVE DUPLICATES
     clearScreen();
     std::cout << "Data to filter filename (Example: filename.txt): ";
     std::cin >> optionStr;
@@ -1248,19 +1245,20 @@ int main(void) {
     bool success = GlobalMethodObject.DuplicatesRemover(optionStr);
     handleProgramCompletion(success, "Duplicates removal");
     GlobalMethodObject.prompt();
+    TerminateProgram();
     break;
   }
 
   case 5: {
-    // 5 EMAIL EXTRACTOR
     EmailProgramObject.PrepareEmailExtractorDirectories();
-    clearScreenWithMessage("[EMAIL EXTRACTOR INITIALIZED]");
-    std::cout << "Copy and paste raw file inside rawfile.txt in Email Extractor Directory\n";
-    if (askYesNoQuestion("Continue extraction")) {
+    clearScreenWithMessage("[EMAIL EXTRACTOR INITIALIZED]\n");
+    std::cout << "PASTE THE DATA INSIDE  [rawfile.txt] LOCATED IN [Email Extractor] FOLDER\n";
+    if (askYesNoQuestion("Continue extraction?:")) {
       bool success = EmailProgramObject.emailextractor();
       handleProgramCompletion(success, "Email Extraction");
       GlobalMethodObject.prompt();
     }
+    TerminateProgram();
     break;
   }
 
@@ -1268,9 +1266,10 @@ int main(void) {
     clearScreen();
     std::cout << "Invalid option selected. \n";
     GlobalMethodObject.prompt();
+    TerminateProgram();
     break;
   }
 
-  std::cout << "\033[0m" << "\033[2J\033[H";
+  std::cout << "\033[0m";
   return 0;
 }
