@@ -1074,11 +1074,11 @@ public:
           return false;
         }
         if (line.empty() && linecount > 0) continue;
-        linecount++;
         dataset.insert(line);
+        linecount++;
 
       }
-      std::ofstream outFile(f2);
+      std::ofstream outFile(Result);
       if (!outFile) {
         clearScreen();
         std::cerr << "PROGRAM FAILED TO ACCESS " << f2 << std::endl;
@@ -1087,18 +1087,16 @@ public:
 
       for (const auto& unique : dataset) {
         if (unique.empty()) continue;
-        duplicatecount++;
         outFile << unique << std::endl;
-
+        duplicatecount++;
       }
     }
     catch (const std::exception& error) {
       std::cerr << "PROGRAM FAILED BECAUSE " << error.what() << std::endl;
       return false;
     }
-    (linecount - duplicatecount > 0) ?
-      std::cout << "TOTAL " << linecount - duplicatecount << " DUPLICATES MERGED.\n" :
-      std::cout << "TOTAL " << linecount - duplicatecount << " DUPLICATES MERGED.\n";
+    clearScreen();
+    std::cout << "TOTAL " << linecount - duplicatecount << " DUPLICATES MERGED.\n";
     return true;
   }
 };
