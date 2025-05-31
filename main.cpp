@@ -85,13 +85,10 @@ public:
   std::string MakeDirectory(const std::string& path, const std::string& folderName) {
     static std::set<std::string> createdFolders;
     fs::path fullPath = (path.empty()) ? fs::current_path() / folderName : fs::path(path) / folderName;
-    if (createdFolders.count(fullPath.string())) {
-      return fullPath.string();
-    }
+    if (createdFolders.count(fullPath.string()) && fs::exists(fullPath)) return fullPath.string();
+
     try {
-      if (fs::create_directories(fullPath)) {
-        createdFolders.insert(fullPath.string());
-      }
+      if (fs::create_directories(fullPath)) createdFolders.insert(fullPath.string());
       return fullPath.string();
     }
     catch (const std::exception& e) {
@@ -375,7 +372,7 @@ public:
   void CreateProgramAttributeFiles(std::string& ProgramAttributeDirectory, std::string& Junks, std::vector<std::string>& ProgramAttributeVector) {
     std::fstream FileAccess;
     for (const auto& file : ProgramAttributeVector) {
-      std::string filePath = (file == "failedleads.txt" || file == "smtp_under_limit.txt" || file == "deadsmtp.txt") ? (Junks + "/" + file) : (ProgramAttributeDirectory + "/" + file);
+      std::string filePath = (file == "failedleads.txt" || file == "smtps_under_limit.txt" || file == "deadsmtps.txt") ? (Junks + "/" + file) : (ProgramAttributeDirectory + "/" + file);
       FileAccess.open(filePath, std::ios::app);
       if (!FileAccess) {
         std::cerr << "Failed to create or open file: " << filePath << std::endl;
@@ -504,54 +501,51 @@ public:
   std::string DuplicateRemoval = "Duplicate Remover";
 
   bool PrepareEmailSenderDirectories() {
-    ProgramAttributeVector = { "smtps.txt", "sendername.txt", "subject.txt", "letter.txt", "leads.txt", "sentleads.txt", "failedleads.txt", "deadsmtp.txt", "smtp_under_limit.txt" };
+    ProgramAttributeVector = { "smtps.txt", "sendername.txt", "subject.txt", "letter.txt", "leads.txt", "sentleads.txt", "failedleads.txt", "deadsmtps.txt", "smtps_under_limit.txt" };
     if (!CreateProgramDirectories(EmailSenderPrograms, EmailProgramDirectory, EmailDataDirectory, EmailJunkDirectory)) return false;
     CreateProgramAttributeFiles(EmailDataDirectory, EmailJunkDirectory, ProgramAttributeVector);
     return true;
   }
 
   bool PrepareSMTPLiveTesterDirectories() {
-    ProgramAttributeVector = { "smtps.txt", "Failed.txt", "Live.txt" };
+    ProgramAttributeVector.clear();
+    ProgramAttributeVector = { "Raw.txt", "Failed.txt", "Live.txt" };
     SMTPLiveTesterDirectory = MakeDirectory(EmailSenderPrograms, SMTPLiveTesterDirectory);
     clearScreen();
-    std::cout << "Please wait, program checking files.\n";
     for (auto& file : ProgramAttributeVector) {
       std::string filePath = fs::path(SMTPLiveTesterDirectory) / file;
-      std::fstream FileAccess(filePath, std::ios::app);
-      if (!FileAccess) {
-        return false;
+      std::ofstream CreateFile(filePath, std::ios::app);
+      if (CreateFile) {
+        CreateFile.close();
       }
-      FileAccess.close();
     }
-    ProgramAttributeVector.clear();
     return true;
   }
 
   bool PrepareEmailExtractorDirectories() {
-    ProgramAttributeVector = { "rawfile.txt", "extracted.txt" };
+    ProgramAttributeVector.clear();
+    ProgramAttributeVector = { "Raw.txt", "Result.txt" };
     EmailExtractorDirectory = MakeDirectory(EmailSenderPrograms, EmailExtractorDirectory);
     for (auto& file : ProgramAttributeVector) {
       std::string FilePath = fs::path(EmailExtractorDirectory) / file;
-      std::fstream FileAccess(FilePath, std::ios::out);
-      if (!FileAccess) {
-        std::cerr << "Failed to create " << file << std::endl;
-        return false;
-      }
-      FileAccess.close();
+      std::fstream CreateFile(FilePath, std::ios::out);
+      if (!CreateFile) CreateFile.close();
     }
     return true;
   }
+
   bool PrepareDuplicateDirectories() {
-    ProgramAttributeVector = { "Unfiltered.txt", "Filtered.txt" };
-    EmailExtractorDirectory = MakeDirectory(EmailSenderPrograms, DuplicateRemoval);
+    ProgramAttributeVector.clear();
+    ProgramAttributeVector = { "Raw.txt", "Result.txt" };
+    DuplicateRemoval = MakeDirectory(EmailSenderPrograms, DuplicateRemoval);
     for (auto& file : ProgramAttributeVector) {
-      std::string FilePath = fs::path(EmailExtractorDirectory) / file;
-      std::fstream FileAccess(FilePath, std::ios::out);
-      if (!FileAccess) {
+      std::string FilePath = fs::path(DuplicateRemoval) / file;
+      std::ofstream CreateFile(FilePath);
+      if (!CreateFile) {
         std::cerr << "Failed to create " << file << std::endl;
         return false;
       }
-      FileAccess.close();
+      CreateFile.close();
     }
     return true;
   }
@@ -743,8 +737,8 @@ public:
     std::string letterPath = fs::path(EmailDataDirectory) / "letter.txt";
     std::string SENTLEADSFILE = fs::path(EmailDataDirectory) / "sentleads.txt";
     std::string FAILEDLEADFILE = fs::path(EmailJunkDirectory) / "failedleads.txt";
-    std::string DEADSMTPFILE = fs::path(EmailJunkDirectory) / "deadsmtp.txt";
-    std::string LIMITEDSMTP = fs::path(EmailJunkDirectory) / "smtp_under_limit.txt";
+    std::string DEADSMTPFILE = fs::path(EmailJunkDirectory) / "deadsmtps.txt";
+    std::string LIMITEDSMTP = fs::path(EmailJunkDirectory) / "smtps_under_limit.txt";
     std::string SMTPFILES = fs::path(EmailDataDirectory) / "smtps.txt";
     std::string SENDERNAMESFILE = fs::path(EmailDataDirectory) / "sendername.txt";
     std::string SUBJECTSFILE = fs::path(EmailDataDirectory) / "subject.txt";
@@ -913,20 +907,22 @@ public:
     int port, smtpAssignCounter = 0, totalvalid = 0, totaldeadsmtp = 0;
     std::unordered_set<std::string> invalidsmtp, validsmtp;
     std::string optionStr, filename, servername, username, password, response, TESTEMAIL, boundary = "----=_Part_001_2345_67890";
-    std::string SMTPS = fs::path(SMTPLiveTesterDirectory) / "smtps.txt", FAILEDSMTPS = fs::path(SMTPLiveTesterDirectory) / "failedsmtps.txt", LIVESMTPS = fs::path(SMTPLiveTesterDirectory) / "Live.txt";
+    std::string SMTPS = fs::path(SMTPLiveTesterDirectory) / "Raw.txt",
+      FAILEDSMTPS = fs::path(SMTPLiveTesterDirectory) / "Failed.txt",
+      LIVESMTPS = fs::path(SMTPLiveTesterDirectory) / "Live.txt";
 
     if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPS)) {
-      std::cerr << "SMTP NOT FOUND IN FILE [smtps.txt]\n";
+      std::cerr << "SMTP RAW FILE IS EMPTY.\n";
       return false;
     }
-
-    std::cout << "Enter a valid email address: ";
+    clearScreen();
+    std::cout << "\t\t[SMTP PROGRAM IN PROCESS]\n\n";
+    std::cout << "Provide Email Address: ";
     std::cin >> TESTEMAIL;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     clearScreen();
-    std::cout << "SMTP Live Tester Initialized...\n"
-      << "Please wait while the program is testing the SMTPs...\n\n";
+    std::cout << "\t\t[SMTP PROGRAM IN PROGRESS]\n\n";
     sleep(1);
 
     for (auto& smtp : SMTPVectorObject.MailDataSetVector) {
@@ -938,14 +934,14 @@ public:
       std::getline(ss, password);
       curl = curl_easy_init();
       if (!curl) {
-        std::cerr << "Failed to initialize, please check network and try again." << std::endl;
+        std::cerr << "PLEASE CHECK NETWORK CONNECTION" << std::endl;
         return false;
       }
       struct curl_slist* recipients = nullptr;
       recipients = curl_slist_append(recipients, TESTEMAIL.c_str());
       response.clear();
       const std::string data =
-        "Subject: SMTP Test OK\r\n"
+        "Subject: SMTP TEST IS OK\r\n"
         "From: <" +
         username +
         ">\r\n"
@@ -958,15 +954,12 @@ public:
         std::to_string(time(nullptr)) + "@" + username +
         ">\r\n"
         "\r\n"
-        "Hello,\r\n" +
-        username +
+        "SMTP: " + username +
         "\r\n"
-        "This is a test email to check SMTP configuration.\r\n"
+        "THIS SMTP IS STILL WORKING.\r\n"
         "\r\n"
-        "Best regards,\r\n"
-        "Your SMTP Test Response\r\n"
-        "\r\n"
-        ".\r\n";
+        "[TELEGRAM: ECHOVSL]\r\n"
+        "\r\n";
       SetCurlForMail(curl, servername, port, username, password);
       curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
       curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
@@ -990,7 +983,13 @@ public:
 
     curl_easy_cleanup(curl);
     curl_global_cleanup();
-    std::cout << totalvalid << " LIVE SMTPS SUCCESSFULLY TESTED." << std::endl;
+    clearScreen();
+    std::cout << std::endl;
+    totalvalid > 1 ?
+      std::cout << totalvalid << " SMTPS ARE TESTED VALID.\n" :
+      std::cout << totalvalid << " SMTP IS TESTED VALID.\n";
+    std::cout << std::endl;
+
 
     std::fstream AvailableSMTPFile(LIVESMTPS, std::ios::app), UnavailableSMTPFile(FAILEDSMTPS, std::ios::app);
     if (!AvailableSMTPFile || !UnavailableSMTPFile) {
@@ -1009,75 +1008,97 @@ public:
     }
     AvailableSMTPFile.close();
     UnavailableSMTPFile.close();
+    std::cout << std::endl;
     return true;
   }
 
   bool EmailExtractor() {
-    std::string rawfile = fs::path(EmailExtractorDirectory) / "rawfile.txt";
-    std::string extracted = fs::path(EmailExtractorDirectory) / "extracted.txt";
+    std::string rawfile = fs::path(EmailExtractorDirectory) / "Raw.txt";
+    std::string extracted = fs::path(EmailExtractorDirectory) / "Result.txt";
+
     std::ifstream RawFileAccess(rawfile);
     if (!RawFileAccess) {
-      std::cerr << "Failed to open rawfile.txt ";
+      std::cerr << "FAILED TO OPEN RAW FILE\n";
       return false;
     }
-    std::string rawcontent((std::istreambuf_iterator<char>(RawFileAccess)), std::istreambuf_iterator<char>());
-    RawFileAccess.close();
-    std::regex EmailPattern(R"(([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))");
-    std::set<std::string> emails;
-    std::smatch match;
-    auto searchStart = rawcontent.cbegin();
-    while (std::regex_search(searchStart, rawcontent.cend(), match, EmailPattern)) {
-      emails.insert(match.str());
-      searchStart = match.suffix().first;
-    }
-    int totalemails = emails.size();
-    std::fstream ExtractedFileAccess(extracted, std::ios::out);
+
+    std::ofstream ExtractedFileAccess(extracted);
     if (!ExtractedFileAccess) {
-      std::cerr << "Failed to access extracted.txt \n\n";
+      std::cerr << "FAILED TO OPEN RESULT FILE\n";
       return false;
     }
-    for (auto& email : emails) {
-      ExtractedFileAccess << email << std::endl;
+
+    std::regex EmailPattern(R"(([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))");
+    std::set<std::string> uniqueEmails;
+
+    std::string line;
+    while (std::getline(RawFileAccess, line)) {
+      std::smatch match;
+      auto searchStart = line.cbegin();
+      while (std::regex_search(searchStart, line.cend(), match, EmailPattern)) {
+        uniqueEmails.insert(match.str());
+        searchStart = match.suffix().first;
+      }
     }
-    ExtractedFileAccess.close();
-    std::cout << "Total email extracted " << totalemails << std::endl;
+
+    for (const auto& email : uniqueEmails) {
+      ExtractedFileAccess << email << '\n';
+    }
+
+    std::cout << uniqueEmails.size() << " TOTAL EMAILS EXTRACTED\n";
     return true;
   }
 
   bool DuplicatesRemover() {
-   
-    const std::string filename_1 = "Unfiltered.txt";
-    const std::string filename_2 = "Filtered.txt";
-
-    const std::string AssetFilePath = fs::path(DuplicateRemoval) / filename_1;
-    const std::string CleanedFilePath = fs::path(DuplicateRemoval) / filename_2;
+    clearScreen();
+    std::cout << "\t\t[DATA DUPLICATE REMOVER IN PROGRESS]\n";
+    const std::string f1 = "Raw.txt";
+    const std::string f2 = "Result.txt";
+    const std::string Raw = fs::path(DuplicateRemoval) / f1;
+    const std::string Result = fs::path(DuplicateRemoval) / f2;
+    int linecount = 0;
+    int duplicatecount = 0;
     try {
-      std::ifstream Filedata(AssetFilePath);
+      std::ifstream Filedata(Raw);
       if (!Filedata) {
-        std::cout << "Error: failed to access " << filename_1 << std::endl;
+        clearScreen();
+        std::cout << "PROGRAM FAILED TO ACCESS " << Raw << std::endl;
         return false;
       }
 
       std::unordered_set<std::string> dataset;
       std::string line;
       while (std::getline(Filedata, line)) {
-        if (!line.empty()) {
-          dataset.insert(line);
+        if (line.empty() && linecount == 0) {
+          std::cerr << "No data found to filter duplicates\n";
+          return false;
         }
+        if (line.empty() && linecount > 0) continue;
+        linecount++;
+        dataset.insert(line);
+
       }
-      std::ofstream outFile(filename_2);
+      std::ofstream outFile(f2);
       if (!outFile) {
-        std::cerr << "Error: failed to write to " << filename_2 << std::endl;
+        clearScreen();
+        std::cerr << "PROGRAM FAILED TO ACCESS " << f2 << std::endl;
         return false;
       }
 
       for (const auto& unique : dataset) {
+        if (unique.empty()) continue;
+        duplicatecount++;
         outFile << unique << std::endl;
+
       }
     }
     catch (const std::exception& error) {
-      std::cerr << "Operation failed becase " << error.what() << std::endl;
+      std::cerr << "PROGRAM FAILED BECAUSE " << error.what() << std::endl;
+      return false;
     }
+    (linecount - duplicatecount > 0) ?
+      std::cout << "TOTAL " << linecount - duplicatecount << " DUPLICATES MERGED.\n" :
+      std::cout << "TOTAL " << linecount - duplicatecount << " DUPLICATES MERGED.\n";
     return true;
   }
 };
@@ -1096,12 +1117,10 @@ bool askYesNoQuestion(const std::string& question) {
 
 void handleProgramCompletion(bool success, const std::string& programName) {
   sleep(1);
-  if (success) {
-    std::cout << programName << " PROGRAM COMPLETED.\n";
-  }
-  else {
+  success ?
+    std::cout << programName << " PROGRAM COMPLETED.\n" :
     std::cout << programName << " PROGRAM FAILED.\n";
-  }
+
 }
 
 void DisplayStartMenu(int& option) {
@@ -1127,9 +1146,8 @@ void DisplayStartMenu(int& option) {
 }
 
 void TerminateProgram() {
-  std::cout
-    << "\033[2J\033[H"
-    << "Terminating program...\n";
+  clearScreen();
+  std::cout << "Terminating program...\n";
   sleep(1);
   clearScreen();
 }
@@ -1161,28 +1179,21 @@ int main(void) {
 
     bool success = EmailProgramObject.EmailSender(UseHTML, UseAttachment);
     handleProgramCompletion(success, "EMAIL SENDER");
-    GlobalMethodObject.prompt();
-    TerminateProgram();
     break;
   }
 
   case 2: {
     if (!EmailProgramObject.PrepareSMTPLiveTesterDirectories()) {
-      std::cout << "Program runtime error, please restart program.\n";
-      GlobalMethodObject.prompt();
+      std::cerr << "FAILED TO PREPARE PROGRAM FILES, TRY AGAIN.\n";
+      break;
     }
-    std::cout << "Please make sure program files are not empty\n"
+    std::cout
+      << "Make sure 'Raw.txt' is not empty.\n"
       << "Do you wanna continue (Y/N): ";
     std::cin >> optionStr;
-    if (optionStr != "Y" || optionStr != "y") {
-      clearScreen();
-      main();
-    }
-    clearScreenWithMessage("\t\t[SMTP LIVE TESTER INITIALIZED]");
+    if (optionStr != "Y" && optionStr != "y") break;
     bool success = EmailProgramObject.SMTPLiveTester();
-    handleProgramCompletion(success, "SMTP Live Tester");
-    GlobalMethodObject.prompt();
-    TerminateProgram();
+    handleProgramCompletion(success, "SMTP TEST PROGRAM");
     break;
   }
 
@@ -1193,36 +1204,33 @@ int main(void) {
     if (askYesNoQuestion("Continue extraction?:")) {
       bool success = EmailProgramObject.EmailExtractor();
       handleProgramCompletion(success, "Email Extraction");
-      GlobalMethodObject.prompt();
     }
-    TerminateProgram();
     break;
   }
 
   case 4: {
     clearScreen();
     if (!EmailProgramObject.PrepareDuplicateDirectories()) {
-      std::cerr << "Failed to prepare this program files.\n";
+      std::cerr << "FAILED TO PREPARE PROGRAM FILES, TRY AGAIN.\n";
       break;
     }
-    std::cout << "Copy and paste unfiltered data in unfiltered.txt\nDo you wanna continue? (Y/N): ";
+    std::cout << "Make sure 'Raw.txt' is not empty.\n"
+      << "Do you wanna continue (Y/N): ";
     std::cin >> optionStr;
     if (optionStr == "Y" || optionStr == "y") {
       bool success = EmailProgramObject.DuplicatesRemover();
-      handleProgramCompletion(success, "Duplicates removal");
+      handleProgramCompletion(success, "DUPLICATE REMOVAL");
     }
-    GlobalMethodObject.prompt();
     break;
   }
 
   default:
     clearScreen();
     std::cout << "Invalid option selected. \n";
-    GlobalMethodObject.prompt();
-    TerminateProgram();
     break;
   }
-
+  GlobalMethodObject.prompt();
+  TerminateProgram();
   std::cout << "\033[0m";
   return 0;
 }
