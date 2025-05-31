@@ -514,7 +514,7 @@ public:
     clearScreen();
     for (auto& file : ProgramAttributeVector) {
       std::string filePath = fs::path(SMTPLiveTesterDirectory) / file;
-      std::ofstream CreateFile(filePath, std::ios::app);
+      std::fstream CreateFile(filePath, std::ios::app);
       if (CreateFile) {
         CreateFile.close();
       }
@@ -540,7 +540,7 @@ public:
     DuplicateRemoval = MakeDirectory(EmailSenderPrograms, DuplicateRemoval);
     for (auto& file : ProgramAttributeVector) {
       std::string FilePath = fs::path(DuplicateRemoval) / file;
-      std::ofstream CreateFile(FilePath);
+      std::fstream CreateFile(FilePath, std::ios::app);
       if (!CreateFile) {
         std::cerr << "Failed to create " << file << std::endl;
         return false;
