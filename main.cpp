@@ -81,7 +81,6 @@ bool ValidDigit(const std::string& param) {
 
 class GlobalMethodClass {
 public:
-  // #: 1
   std::string MakeDirectory(const std::string& path, const std::string& folderName) {
     static std::set<std::string> createdFolders;
     fs::path fullPath = (path.empty()) ? fs::current_path() / folderName : fs::path(path) / folderName;
@@ -97,7 +96,6 @@ public:
     return "";
   }
 
-  // #: 2
   bool ReadFileToVector(std::vector<std::string>& FileVector, const std::string& filepath) {
     std::fstream FileData(filepath, std::ios::in);
     if (!FileData) {
@@ -114,14 +112,12 @@ public:
     return !FileVector.empty();
   }
 
-  // #: 3
   std::string GetRandomDataFromVector(const std::vector<std::string>& param) {
-    static std::mt19937 gen(std::random_device{}()); // Static generator
+    static std::mt19937 gen(std::random_device{}());
     std::uniform_int_distribution<> dis(0, param.size() - 1);
     return param[dis(gen)];
   }
 
-  // #: 4
   bool FETCHSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password) {
     if (Vector.empty()) return false;
 
@@ -144,7 +140,6 @@ public:
     return true;
   }
 
-  // THIS IS A TEMP FUNCTION TO FETCH SMTP IN NEXT LINES
   bool LOADSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password, int& index) {
     if (Vector.empty()) return false;
 
@@ -168,7 +163,6 @@ public:
     return true;
   }
 
-  // #: 5
   void WriteDataToFile(const std::string FilePath, std::string data) {
     try {
       std::fstream FileAccess(FilePath, std::ios::app);
@@ -184,7 +178,6 @@ public:
     }
   }
 
-  // #: 6
   bool FetchDataFromFile(const std::string FilePath, std::string& VariableStorage) {
     try {
       std::fstream FileAccess(FilePath, std::ios::in);
@@ -206,7 +199,6 @@ public:
     return true;
   }
 
-  // ENCODING HTML
   std::string QuotedPrintableEncode(const std::string& input) {
     std::ostringstream out;
     int lineLength = 0;
@@ -260,7 +252,6 @@ public:
     return out.str();
   }
 
-  // #: 7
   void DATACLEANUP(const std::string leadfile, const std::string sentleads, const std::string failedleads) {
     std::ifstream newfile(leadfile);
     std::ifstream sentfiles(sentleads);
@@ -309,15 +300,11 @@ public:
     failedfiles.close();
   }
 
-  // #: 8
   std::string base64Encode(const std::string& filePath) {
-    // Open the file in binary mode
     std::ifstream file(filePath, std::ios::binary);
     std::ostringstream fileStream;
     fileStream << file.rdbuf();
     std::string fileContent = fileStream.str();
-
-    // Base64 encode the file content
     static const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string encoded;
     int val = 0, valb = -6;
@@ -338,17 +325,12 @@ public:
     return encoded;
   }
 
-  // #: 9
-
-
-  // #: 10
   void stripdata(std::string& server, std::string& port) {
     std::stringstream ss(server);
     std::getline(ss, server, ':');
     std::getline(ss, port);
   }
 
-  // #: 11
   void prompt() {
     std::string optionStr;
     std::cout << std::endl
@@ -360,7 +342,7 @@ public:
     clearScreen();
   }
 
-  // #: 12
+
   bool CreateProgramDirectories(std::string BaseProgramDirectory, std::string& ChildProgramDirectory, std::string& ProgramAttributeDirectory, std::string& Junks) {
     ChildProgramDirectory = MakeDirectory(BaseProgramDirectory, ChildProgramDirectory);
     ProgramAttributeDirectory = MakeDirectory(ChildProgramDirectory, ProgramAttributeDirectory);
@@ -368,7 +350,6 @@ public:
     return (!BaseProgramDirectory.empty() && !ChildProgramDirectory.empty() && !ProgramAttributeDirectory.empty() && !Junks.empty()) ? true : false;
   }
 
-  // #: 13
   void CreateProgramAttributeFiles(std::string& ProgramAttributeDirectory, std::string& Junks, std::vector<std::string>& ProgramAttributeVector) {
     std::fstream FileAccess;
     for (const auto& file : ProgramAttributeVector) {
@@ -381,7 +362,6 @@ public:
     }
   }
 
-  // #: 14
   bool CreateSMSAttributeFiles(std::string& GatewaySenderDirectory, std::vector<std::string>& FilesVector) {
     std::fstream FileAccess;
     for (const auto& file : FilesVector) {
@@ -396,7 +376,6 @@ public:
     return true;
   }
 
-  // #: 15
   void EMAILSUCCESSMESSAGE(const std::string sendername, const std::string subject, const std::string lead, const int count) {
     std::cout
       << "\033[92m"
@@ -428,7 +407,6 @@ public:
       << "<=================================\n\n";
   }
 
-  //SMTP PRINT RESPONSE
   void SMTPSUCCESSMESSAGE(const std::string smtp) {
     std::cout
       << "\033[92m"
@@ -444,7 +422,6 @@ public:
       << "\033[92m";
   }
 
-  // #: 17
   std::string UrlEncode(const std::string& str) {
     std::ostringstream encoded;
     for (size_t i = 0; i < str.length(); ++i) {
@@ -459,7 +436,6 @@ public:
     return encoded.str();
   }
 
-  // #: 18
   std::string GetCurrentDateTime() {
     time_t now = time(nullptr);
     struct tm tm = *gmtime(&now);
@@ -484,7 +460,6 @@ public:
   MailDataSet::SMTPAttribute SMTPAttributeObject;
   std::string EmailSenderPrograms = "Email Sender Programs";
 
-  // Main Program class constructor
   EmailSenderProgram() {
     EmailSenderPrograms = MakeDirectory("", EmailSenderPrograms);
   }
@@ -528,7 +503,7 @@ public:
     EmailExtractorDirectory = MakeDirectory(EmailSenderPrograms, EmailExtractorDirectory);
     for (auto& file : ProgramAttributeVector) {
       std::string FilePath = fs::path(EmailExtractorDirectory) / file;
-      std::fstream CreateFile(FilePath, std::ios::out);
+      std::fstream CreateFile(FilePath, std::ios::app);
       if (!CreateFile) CreateFile.close();
     }
     return true;
@@ -577,7 +552,6 @@ public:
     return uuid;
   }
 
-  // Helper function to generate Message-ID
   std::string GenerateMessageID(const std::string& username) {
     size_t at_pos = username.find('@');
     std::string domain = (at_pos != std::string::npos) ? username.substr(at_pos) : "example.com";
@@ -591,7 +565,6 @@ public:
     for (char c : html) {
       if (c == '<') {
         inTag = true;
-        // Add space when closing tags to maintain word separation
         if (!result.empty() && result.back() != ' ') {
           result += ' ';
         }
@@ -604,7 +577,6 @@ public:
       }
     }
 
-    // Collapse multiple spaces and trim
     result.erase(std::unique(result.begin(), result.end(),
       [](char a, char b) { return a == ' ' && b == ' '; }),
       result.end());
@@ -613,7 +585,6 @@ public:
     return result;
   }
 
-  // Helper function to get MIME type from filename
   std::string GetMimeType(const std::string& filepath) {
     static const std::map<std::string, std::string> mimeTypes = {
         {".txt", "text/plain"},
@@ -728,8 +699,6 @@ public:
     }
   }
 
-  // # EMAIL SENDER MODULE
-
   bool EmailSender(bool useHTML, bool useAttachment) {
     clearScreen();
     bool success = false;
@@ -746,7 +715,6 @@ public:
     int sentCount = 0, errorCount = 0, rateLimit = 0, rateCount = 0, index = 0, retries = 0;
     int sendspeed;
     long responseCode;
-
     if (useAttachment) {
       attachmentPath = MakeDirectory(EmailDataDirectory, "Attachment");
       std::cout << "\033[2J\033[HProvide Attachment filename (e.g., file.pdf): ";
@@ -754,7 +722,6 @@ public:
       std::cin >> filename;
       attachmentFileName = fs::path(attachmentPath) / filename;
     }
-
     if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPFILES) ||
       !ReadFileToVector(NameVectorObject.MailDataSetVector, SENDERNAMESFILE) ||
       !ReadFileToVector(SubjectVectorObject.MailDataSetVector, SUBJECTSFILE)) {
@@ -762,14 +729,11 @@ public:
       sleep(1);
       return false;
     }
-
     if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
       std::cerr << "SMTP NOT FOUND OR FINISHED.\n";
       return false;
     }
-
     std::string tmp;
-
     if (!ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt") ||
       !ReadFileToVector(SubjectVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "subject.txt")) return false;
 
@@ -778,7 +742,6 @@ public:
       std::cerr << "FAILED TO ACCESS LEADS FILE.\n";
       return false;
     }
-
     clearScreen();
     int totalSMTP = SMTPVectorObject.MailDataSetVector.size();
     if (totalSMTP > 1) {
@@ -791,33 +754,26 @@ public:
         std::cin >> rateLimit;
       }
     }
-
     clearScreen();
     std::cout << "[SEND SPEED LIMIT PRESERVES SMTP LIFE]\n"
       << "[SPEED LIMIT WORKS IN SECONDS]\n"
       << "Set speed delay limit (default: 2): ";
     std::cin >> sendspeed;
     sendspeed = (sendspeed > 2) ? sendspeed : 2;
-
     std::string letter;
     FetchDataFromFile(letterPath, letter);
-
     CURL* curl;
     CURLcode res;
     curl_slist* recipients = nullptr;
-
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
     if (!curl) return false;
-
     SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
     clearScreenWithMessage("\t\t\t[EMAIL SENDER INITIALIZED]\n");
-
     for (const auto& lead : leads) {
       if (sentCount > 0) {
         sleep(sendspeed);
       }
-
       if (rateLimit > 0 && rateCount >= rateLimit) {
         if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
           std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n";
@@ -830,12 +786,9 @@ public:
         SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
         rateCount = 0;
       }
-
       sender = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
       subject = GetRandomDataFromVector(SubjectVectorObject.MailDataSetVector);
-
       MakeEmailBody(emailBody, useHTML, useAttachment, boundary, SMTPAttributeObject.servername, sender, SMTPAttributeObject.username, subject, letter, lead, attachmentFileName);
-
       recipients = curl_slist_append(nullptr, lead.c_str());
       curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
       curl_easy_setopt(curl, CURLOPT_MAIL_FROM, SMTPAttributeObject.username.c_str());
@@ -845,7 +798,6 @@ public:
       curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
       res = curl_easy_perform(curl);
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
-
       if (res == CURLE_OK && responseCode == 250) {
         success = true;
         retries = 0;
@@ -887,7 +839,6 @@ public:
       curl_slist_free_all(recipients);
       recipients = nullptr;
     }
-
     curl_easy_cleanup(curl);
     curl_global_cleanup();
     DATACLEANUP(LEADSFILE, SENTLEADSFILE, FAILEDLEADFILE);
