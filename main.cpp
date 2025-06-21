@@ -20,6 +20,8 @@
 #include <unistd.h>
 #include <unordered_set>
 #include <vector>
+#include <limits>
+
 
 namespace fs = std::filesystem;
 
@@ -377,49 +379,53 @@ public:
   }
 
   void EMAILSUCCESSMESSAGE(const std::string sendername, const std::string subject, const std::string lead, const int count) {
+    const std::string green = "\033[92m";
+    const std::string yellow = "\033[93m";
+    const std::string red = "\033[91m";
+    const std::string bold = "\033[1m";
+    const std::string reset = "\033[0m";
+
     std::cout
-      << "\033[92m"
-      << "=================================>   "
-      << "\033[91m"
-      << "\033[1m"
-      << "EMAIL SENT SUCCESSFUL  "
-      << "\033[92m"
-      << "<=================================\n"
-
-      << "\033[92m" << "> COUNT: "
-      << "\033[93m" << "[" << count << "]\n"
-
-      << "\033[92m" << "> SENDER NAME: "
-      << "\033[93m" << sendername << "\n"
-
-      << "\033[92m" << "> SUBJECT TITLE: "
-      << "\033[93m" << subject << "\n"
-
-      << "\033[92m" << "> RECIPIENT EMAIL: "
-      << "\033[93m" << lead << "\n"
-
-      << "\033[92m"
-      << "=================================>  "
-      << "\033[91m"
-      << "\033[1m"
-      << "ECHOBLAST EMAIL SENDER  "
-      << "\033[92m"
-      << "<=================================\n\n";
+      << green << "===============================   "
+      << red << bold << "EMAIL SENT SUCCESSFUL  "
+      << green << "===============================\n"
+      << green << "COUNT: " << yellow << "[" << count << "]\n"
+      << green << "DATE: " << yellow << GetCurrentDateTime() << "\n"
+      << green << "SENDER NAME: " << yellow << sendername << "\n"
+      << green << "SUBJECT TITLE: " << yellow << subject << "\n"
+      << green << "RECIPIENT EMAIL: " << yellow << lead << "\n"
+      << green << "===============================  "
+      << red << bold << "ECHOBLAST EMAIL SENDER  "
+      << reset << green << "===============================\n\n";
   }
 
   void SMTPSUCCESSMESSAGE(const std::string smtp) {
+    const std::string green = "\033[92m";
+    const std::string red = "\033[91m";
+    const std::string reset = "\033[0m";
+    const std::string yellow = "\033[93m";
     std::cout
-      << "\033[92m"
-      << "=============================    SMTP TEST    =============================\n"
-      << smtp << std::endl
-      << "============================= TEST SUCCESSFUL =============================\n\n";
+      << green
+      << "=============================  SMTP TEST SUCCESSFUL  =============================\n"
+      << green << "DATE: " << yellow << GetCurrentDateTime() << "\n"
+      << green << "SMTP: " << yellow << smtp << std::endl
+      << green
+      << "==============================  TELEGRAM: ECHOVSL  ===============================\n\n";
   }
   void SMTPFAILEDMESSAGE(const std::string smtp) {
-    std::cout << "\033[31m"
-      << "=============================    SMTP TEST    =============================\n"
-      << smtp << std::endl
-      << "=============================   TEST FAILED   =============================\n\n"
-      << "\033[92m";
+    const std::string green = "\033[92m";
+    const std::string red = "\033[91m";
+    const std::string reset = "\033[0m";
+    const std::string yellow = "\033[93m";
+
+    std::cout
+      << red
+      << "=============================  SMTP TEST FAILED  =============================\n"
+      << green << "DATE: " << yellow << GetCurrentDateTime() << "\n"
+      << green << "SMTP: " << smtp << std::endl
+      << red
+      << "============================  TELEGRAM: ECHOVSL  =============================\n\n"
+      << reset << green;
   }
 
   std::string UrlEncode(const std::string& str) {
@@ -442,6 +448,15 @@ public:
     char buf[64];
     strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S +0000", &tm);
     return std::string(buf);
+  }
+
+  bool isValidEmail(const std::string& email) {
+    const std::regex pattern(R"(^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$)");
+    return std::regex_match(email, pattern);
+  }
+  std::string GetDomain(const std::string& username, const std::string& servername) {
+    const size_t at_pos = username.find('@');
+    return (at_pos != std::string::npos) ? username.substr(at_pos + 1) : servername;
   }
 };
 
@@ -554,7 +569,7 @@ public:
 
   std::string GenerateMessageID(const std::string& username) {
     size_t at_pos = username.find('@');
-    std::string domain = (at_pos != std::string::npos) ? username.substr(at_pos) : "example.com";
+    std::string domain = (at_pos != std::string::npos) ? username.substr(at_pos) : "admin@sendgrid.com";
     return GenerateUUID() + domain;
   }
 
@@ -623,18 +638,12 @@ public:
   }
 
   void MakeEmailBody(
-    std::string& EmailContentBody, bool useHTML, bool useAttachment, std::string boundary,
+    std::string& EmailContentBody, bool useHTML, bool useAttachment,
     const std::string& servername, const std::string& sendername, const std::string& username,
     const std::string& subject, const std::string& letter, const std::string& lead,
     const std::string& AttachmentFilePath = "") {
-
-    std::string tmp;
     time_t now = time(nullptr);
-
-    if (boundary.empty()) {
-      boundary = "----=_Part_" + std::to_string(now) + GenerateUUID();
-    }
-
+    const std::string boundary = "----=_Part_" + std::to_string(now) + GenerateUUID();
     const std::string altBoundary = "----=_AltPart_" + GenerateUUID();
     const size_t at_pos = username.find('@');
     const std::string domain = (at_pos != std::string::npos) ? username.substr(at_pos + 1) : servername;
@@ -643,18 +652,14 @@ public:
     EmailContentBody.reserve(2048);
 
     EmailContentBody +=
-      "From: " + sendername + " <" + username + ">\r\n"
-      "To: " + lead + "\r\n"
+      "From: \"" + sendername + "\" <" + username + ">\r\n"
+      "To: <" + lead + ">\r\n"
       "Subject: " + subject + "\r\n"
       "Date: " + GetCurrentDateTime() + "\r\n"
       "Message-ID: <" + std::to_string(now) + "." + GenerateUUID() + "@" + domain + ">\r\n"
-      "Reply-To: " + sendername + " <" + username + ">\r\n"
+      "Reply-To: \"" + sendername + "\" <" + username + ">\r\n"
       "Return-Path: <" + username + ">\r\n"
-      "User-Agent: Apple Mail (2.3654.120.0.1.13)\r\n"
-      "X-Mailer: Apple Mail (2.3654.120.0.1.13)\r\n"
-      "Mime-Version: 1.0 (Apple Message framework v3654.120.0.1.13)\r\n"
-      "X-Priority: 3 (Normal)\r\n"
-      "Priority: normal\r\n"
+      "MIME-Version: 1.0\r\n"
       "Content-Language: en-US\r\n";
 
     if (useAttachment) {
@@ -667,34 +672,31 @@ public:
       "--" + altBoundary + "\r\n";
 
     if (useHTML) {
-      tmp = QuotedPrintableEncode(letter);
       EmailContentBody +=
         "Content-Type: text/html; charset=UTF-8\r\n"
         "Content-Transfer-Encoding: quoted-printable\r\n\r\n" +
-        tmp + "\r\n\r\n";
+        QuotedPrintableEncode(letter) + "\r\n\r\n";
     }
     else {
       EmailContentBody +=
         "Content-Type: text/plain; charset=UTF-8\r\n"
         "Content-Transfer-Encoding: quoted-printable\r\n\r\n" +
-        StripHTML(letter) + "\r\n\r\n";
+        QuotedPrintableEncode(StripHTML(letter)) + "\r\n\r\n";
     }
 
     EmailContentBody += "--" + altBoundary + "--\r\n";
 
-    if (useAttachment) {
-      if (!AttachmentFilePath.empty()) {
-        const std::string attachmentName = std::filesystem::path(AttachmentFilePath).filename().string();
-        const std::string mimeType = GetMimeType(AttachmentFilePath);
-        const std::string encodedFile = base64Encode(AttachmentFilePath);
+    if (useAttachment && !AttachmentFilePath.empty()) {
+      const std::string attachmentName = std::filesystem::path(AttachmentFilePath).filename().string();
+      const std::string mimeType = GetMimeType(AttachmentFilePath);
+      const std::string encodedFile = base64Encode(AttachmentFilePath);
 
-        EmailContentBody +=
-          "--" + boundary + "\r\n"
-          "Content-Type: " + mimeType + "; name=\"" + attachmentName + "\"\r\n"
-          "Content-Disposition: attachment; filename=\"" + attachmentName + "\"\r\n"
-          "Content-Transfer-Encoding: base64\r\n\r\n" +
-          encodedFile + "\r\n\r\n";
-      }
+      EmailContentBody +=
+        "--" + boundary + "\r\n"
+        "Content-Type: " + mimeType + "; name=\"" + attachmentName + "\"\r\n"
+        "Content-Disposition: attachment; filename=\"" + attachmentName + "\"\r\n"
+        "Content-Transfer-Encoding: base64\r\n\r\n" +
+        encodedFile + "\r\n\r\n";
       EmailContentBody += "--" + boundary + "--\r\n";
     }
   }
@@ -713,9 +715,20 @@ public:
     return found;
   }
 
+  int GenerateDelay() {
+    static int delays[] = { 10, 11, 12, 13, 14, 15 };
+    static int size = 6;
+    static std::mt19937 rng(std::random_device{}());
+
+    if (size == 0) {
+      size = 6;
+      std::shuffle(delays, delays + size, rng);
+    }
+
+    return delays[--size];
+  }
+
   bool EmailSender(bool useHTML, bool useAttachment) {
-    clearScreen();
-    bool success = false;
     std::string LEADSFILE = fs::path(EmailDataDirectory) / "leads.txt";
     std::string letterPath = fs::path(EmailDataDirectory) / "letter.txt";
     std::string SENTLEADSFILE = fs::path(EmailDataDirectory) / "sentleads.txt";
@@ -725,148 +738,204 @@ public:
     std::string SMTPFILES = fs::path(EmailDataDirectory) / "smtps.txt";
     std::string SENDERNAMESFILE = fs::path(EmailDataDirectory) / "sendername.txt";
     std::string SUBJECTSFILE = fs::path(EmailDataDirectory) / "subject.txt";
-    std::string attachmentPath, emailBody, attachmentFileName, sender, subject, CURRENTSMTP, boundary;
-    int sentCount = 0, errorCount = 0, rateLimit = 0, rateCount = 0, index = 0, retries = 0;
-    int sendspeed;
+    std::string letter, attachmentPath, emailBody, attachmentFileName, sender, subject, CURRENTSMTP;
+    int sentCount = 0, rateLimit = 0, rateCount = 0, index = 0, retries = 0, sendspeed = 2;
     long responseCode;
-    if (useAttachment) {
-      attachmentPath = MakeDirectory(EmailDataDirectory, "Attachment");
-      std::cout << "\033[2J\033[HProvide Attachment filename (e.g., file.pdf): ";
-      std::string filename;
-      std::cin >> filename;
-      attachmentFileName = fs::path(attachmentPath) / filename;
+    std::vector<std::string> leads;
+    std::ofstream sentLeads(SENTLEADSFILE, std::ios::app), failedLeads(FAILEDLEADFILE, std::ios::app),
+      deadSMTPs(DEADSMTPFILE, std::ios::app), limitedSMTPs(LIMITEDSMTP, std::ios::app);
+    if (!sentLeads || !failedLeads || !deadSMTPs || !limitedSMTPs) {
+      std::cerr << "Failed to open output files.\n";
+      return false;
     }
     if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPFILES) ||
       !ReadFileToVector(NameVectorObject.MailDataSetVector, SENDERNAMESFILE) ||
-      !ReadFileToVector(SubjectVectorObject.MailDataSetVector, SUBJECTSFILE)) {
-      std::cerr << "Email Assets Files Cannot Be Empty\n";
-      sleep(1);
+      !ReadFileToVector(SubjectVectorObject.MailDataSetVector, SUBJECTSFILE) ||
+      !ReadFileToVector(leads, LEADSFILE)) {
+      std::cerr << "FAILED TO READ EMAIL ATTRIBUTES\n";
       return false;
     }
-    if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-      std::cerr << "SMTP NOT FOUND OR FINISHED.\n";
+    if (!FetchDataFromFile(letterPath, letter)) {
+      std::cerr << "EMAIL LETTER NOT FOUND.\n";
       return false;
     }
-    std::string tmp;
-    if (!ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt") ||
-      !ReadFileToVector(SubjectVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "subject.txt")) return false;
-
-    std::vector<std::string> leads;
-    if (!ReadFileToVector(leads, LEADSFILE)) {
-      std::cerr << "FAILED TO ACCESS LEADS FILE.\n";
+    if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
+      SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+      std::cerr << "NO SMTP FOUND INITIALLY.\n";
       return false;
     }
-    clearScreen();
-    int totalSMTP = SMTPVectorObject.MailDataSetVector.size();
-    if (totalSMTP > 1) {
+    if (useAttachment) {
+      attachmentPath = MakeDirectory(EmailDataDirectory, "Attachment");
       clearScreen();
-      std::cout << totalSMTP << " SMTPS FOUND.\n"
-        << "Do you wanna set rate limit (Y/N): ";
-      std::cin >> tmp;
-      if (tmp == "Y" || tmp == "y") {
-        std::cout << "Specify send rate limit : ";
-        std::cin >> rateLimit;
+      std::cout << "Provide Attachment filename (filename.pdf): ";
+      std::getline(std::cin >> std::ws, attachmentFileName);
+      if (attachmentFileName.empty()) {
+        std::cerr << "Invalid attachment filename. Using no attachment.\n";
+        useAttachment = false;
+      }
+      else {
+        attachmentFileName = fs::path(attachmentPath) / attachmentFileName;
       }
     }
-    clearScreen();
-    std::cout << "[SEND SPEED LIMIT PRESERVES SMTP LIFE]\n"
-      << "[SPEED LIMIT WORKS IN SECONDS]\n"
-      << "Set speed delay limit (default: 2): ";
-    std::cin >> sendspeed;
-    sendspeed = (sendspeed > 2) ? sendspeed : 2;
-    std::string letter;
-    FetchDataFromFile(letterPath, letter);
-    CURL* curl;
-    CURLcode res;
-    curl_slist* recipients = nullptr;
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (!curl) return false;
-    SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
-    clearScreenWithMessage("\t\t\t[EMAIL SENDER INITIALIZED]\n");
-    for (const auto& lead : leads) {
-      if (sentCount > 0) {
-        sleep(sendspeed);
+    if (SMTPVectorObject.MailDataSetVector.size() > 1) {
+      clearScreen();
+      std::cout << "TOTAL " << SMTPVectorObject.MailDataSetVector.size() << " SMTPS DETECTED.\n"
+        << "NOTE: SET SEND RATE TO ROTATE AND EXTEND SMTP LIFE.\n\n"
+        << "DO SET SEND RATE PER SMTP: (Y/N): ";
+      std::string tmp;
+      std::getline(std::cin >> std::ws, tmp);
+      if (tmp.empty() || (tmp != "Y" && tmp != "y" && tmp != "N" && tmp != "n")) {
+        std::cerr << "INVALID RESPONSE, RATE LIMIT NOT SET.\n";
       }
-      if (rateLimit > 0 && rateCount >= rateLimit) {
-        if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-          std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n";
-          std::cout << "LOAD MORE SMTP AND RETRY PROGRAM\n";
-          if (sentCount <= 0) {
-            return false;
-          }
-          break;
+      else if (tmp == "Y" || tmp == "y") {
+        std::cout << "SET SEND RATE PER SMTP: ";
+        if (!(std::cin >> rateLimit) || rateLimit < 0) {
+          std::cin.clear();
+          std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+          std::cerr << "INVALID INPUT, RATE LIMIT NOT SET.\n";
+          rateLimit = 0;
         }
-        SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
-        rateCount = 0;
       }
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    clearScreen();
+    std::cout << "NOTE: BLAST DELAY PRESERVES SMTP LIFE.\n"
+      << "NOTE: SYSTEM DEFINED DELAY RANGE 10-15 SECONDS SIMULTANEOUSLY.\n"
+      << "NOTE: IF CUSTOM DELAY FALLS BELOW 5 SECONDS, PROGRAM FALLS BACK TO SYSTEM DEFINED DELAY.\n\n"
+      << "SET CUSTOM DELAY (MIN 5): ";
+    if (!(std::cin >> sendspeed) || sendspeed < 5) {
+      std::cin.clear();
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      std::cerr << "INVALID CHOICE, PROGRAM FALL BACK TO DEFAULT DELAY.\n";
+      sendspeed = GenerateDelay();
+      sleep(2);
+    }
+    else {
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+      std::cerr << "INITIALIZATION FAILED.\nPLEASE CHECK YOUR INTERNET OR VPN/PROXY IF IN USE.\n";
+      curl_global_cleanup();
+      return false;
+    }
+
+    SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+      SMTPAttributeObject.username, SMTPAttributeObject.password);
+    clearScreenWithMessage("\t\t\t[EMAIL SENDER INITIALIZED]\n");
+
+    for (const auto& lead : leads) {
+      if (sentCount > 0) sleep(sendspeed);
+
+      if (rateLimit > 0 && rateCount >= rateLimit) {
+        std::cout << "\n\nSEND RATE LIMIT SET IS REACHED FOR CURRENT SMTP\n[" << CURRENTSMTP << "]\n";
+        sleep(2);
+        std::cout << "LOADING NEW SMTP IN PROGRESS.\n";
+        if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
+          SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+          std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
+            << "LOAD MORE SMTP AND RETRY PROGRAM\n";
+          if (sentCount <= 0) return false;
+        }
+        else {
+          SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+            SMTPAttributeObject.username, SMTPAttributeObject.password);
+          rateCount = 0;
+        }
+      }
+
       sender = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
       subject = GetRandomDataFromVector(SubjectVectorObject.MailDataSetVector);
-      MakeEmailBody(emailBody, useHTML, useAttachment, boundary, SMTPAttributeObject.servername, sender, SMTPAttributeObject.username, subject, letter, lead, attachmentFileName);
-      recipients = curl_slist_append(nullptr, lead.c_str());
+      MakeEmailBody(emailBody, useHTML, useAttachment, SMTPAttributeObject.servername,
+        sender, SMTPAttributeObject.username, subject, letter, lead, attachmentFileName);
+
+      curl_slist* recipients = curl_slist_append(nullptr, lead.c_str());
       curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
       curl_easy_setopt(curl, CURLOPT_MAIL_FROM, SMTPAttributeObject.username.c_str());
       curl_easy_setopt(curl, CURLOPT_READDATA, &emailBody);
       curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
       curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
       curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
-      res = curl_easy_perform(curl);
+
+      CURLcode res = curl_easy_perform(curl);
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
+
       if (res == CURLE_OK && responseCode == 250) {
-        success = true;
-        retries = 0;
-        WriteDataToFile(SENTLEADSFILE, lead);
+        sentLeads << lead << '\n';
         sentCount++;
         rateCount++;
+        retries = 0;
         EMAILSUCCESSMESSAGE(sender, subject, lead, sentCount);
       }
       else {
-        if (res == CURLE_LOGIN_DENIED && responseCode == 535 || responseCode == 530 || responseCode == 534) {
-          WriteDataToFile(DEADSMTPFILE, CURRENTSMTP);
+        if (res == CURLE_LOGIN_DENIED || responseCode == 535 || responseCode == 530 || responseCode == 534) {
+          std::cout << "\n\nCURRENT SMTP [" << CURRENTSMTP << "] IS DEAD.\n";
+          deadSMTPs << CURRENTSMTP << '\n';
           POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
-          if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-            std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
-              << "LOAD MORE SMTP AND RETRY PROGRAM\n"
-              << "LOGIN DENIED\n";
-            break;
+          sleep(2);
+          std::cout << "LOADING NEW SMTP IN PROGRESS.\n";
+          if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
+            SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+            std::cout << "ALL SMTPS ARE USED UP OR UNAVAILABLE.\n"
+              << "LOAD MORE SMTP AND RETRY PROGRAM.\n";
+            if (sentCount <= 0) return false;
+          }
+          else {
+            SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+              SMTPAttributeObject.username, SMTPAttributeObject.password);
           }
         }
-        else if (res == CURLE_RECV_ERROR || res == CURLE_SEND_ERROR && responseCode == 452 || responseCode == 421 || responseCode == 451 || responseCode == 550) {
-          if (retries > 5) {
-            WriteDataToFile(LIMITEDSMTP, CURRENTSMTP);
+        else if ((res == CURLE_RECV_ERROR || res == CURLE_SEND_ERROR) &&
+          (responseCode == 452 || responseCode == 421 || responseCode == 451 || responseCode == 550)) {
+          if (retries >= 5) {
+            std::cout << "\n\nCURRENT SMTP [" << CURRENTSMTP << "] IS HIT LIMIT\n";
+            limitedSMTPs << CURRENTSMTP << '\n';
             POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
-            if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+            sleep(2);
+            std::cout << "LOADING NEW SMTP IN PROGRESS.\n";
+            if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
+              SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
               std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
-                << "LOAD MORE SMTP AND RETRY PROGRAM\n"
-                << "RATE LIMIT HIT\n";
-              break;
+                << "LOAD MORE SMTP AND RETRY PROGRAM\n";
+              if (sentCount <= 0) return false;
+            }
+            else {
+              SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+                SMTPAttributeObject.username, SMTPAttributeObject.password);
+              retries = 0;
             }
           }
           else {
-            WriteDataToFile(FAILEDLEADFILE, lead);
+            failedLeads << lead << '\n';
             retries++;
             continue;
           }
         }
-        SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
+        else {
+          SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+            SMTPAttributeObject.username, SMTPAttributeObject.password);
+        }
       }
       curl_slist_free_all(recipients);
-      recipients = nullptr;
     }
+
     curl_easy_cleanup(curl);
     curl_global_cleanup();
+    sentLeads.close();
+    failedLeads.close();
+    deadSMTPs.close();
+    limitedSMTPs.close();
     DATACLEANUP(LEADSFILE, SENTLEADSFILE, FAILEDLEADFILE);
     DATACLEANUP(SMTPFILES, LIMITEDSMTP, DEADSMTPFILE);
-    if (!success) {
-      return false;
-    }
-    std::cout << "TOTAL SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
-    return true;
+
+    clearScreen();
+    if (sentCount > 0) std::cout << "TOTAL SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
+    return sentCount > 0;
   }
 
   bool VariableEmailSender(bool useHTML, bool useAttachment) {
-    clearScreen();
-    bool success = false;
     std::string LEADSFILE = fs::path(EmailDataDirectory) / "leads.txt";
     std::string letterPath = fs::path(EmailDataDirectory) / "letter.txt";
     std::string SENTLEADSFILE = fs::path(EmailDataDirectory) / "sentleads.txt";
@@ -876,87 +945,113 @@ public:
     std::string SMTPFILES = fs::path(EmailDataDirectory) / "smtps.txt";
     std::string SENDERNAMESFILE = fs::path(EmailDataDirectory) / "sendername.txt";
     std::string SUBJECTSFILE = fs::path(EmailDataDirectory) / "subject.txt";
-    std::string attachmentPath, body, emailBody, attachmentFileName, sender, subject, CURRENTSMTP, boundary;
-    int sentCount = 0, errorCount = 0, rateLimit = 0, rateCount = 0, index = 0, retries = 0;
-    int sendspeed;
+    std::string attachmentPath, emailBody, attachmentFileName, sender, subject, CURRENTSMTP, body;
+    int sentCount = 0, rateLimit = 0, rateCount = 0, index = 0, retries = 0, sendspeed = 2;
     long responseCode;
-    if (useAttachment) {
-      attachmentPath = MakeDirectory(EmailDataDirectory, "Attachment");
-      std::cout << "\033[2J\033[HProvide Attachment filename (e.g., file.pdf): ";
-      std::string filename;
-      std::cin >> filename;
-      attachmentFileName = fs::path(attachmentPath) / filename;
+    std::vector<std::string> leads;
+    std::ofstream sentLeads(SENTLEADSFILE, std::ios::app), failedLeads(FAILEDLEADFILE, std::ios::app),
+      deadSMTPs(DEADSMTPFILE, std::ios::app), limitedSMTPs(LIMITEDSMTP, std::ios::app);
+    if (!sentLeads || !failedLeads || !deadSMTPs || !limitedSMTPs) {
+      std::cerr << "Failed to open output files.\n";
+      return false;
     }
     if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPFILES) ||
       !ReadFileToVector(NameVectorObject.MailDataSetVector, SENDERNAMESFILE) ||
-      !ReadFileToVector(SubjectVectorObject.MailDataSetVector, SUBJECTSFILE)) {
-      std::cerr << "Email Assets Files Cannot Be Empty\n";
-      sleep(1);
+      !ReadFileToVector(SubjectVectorObject.MailDataSetVector, SUBJECTSFILE) ||
+      !ReadFileToVector(leads, LEADSFILE)) {
+      std::cerr << "FAILED TO READ EMAIL ATTRIBUTES\n";
       return false;
     }
-    if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-      std::cerr << "SMTP NOT FOUND OR FINISHED.\n";
+    if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
+      SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+      std::cerr << "NO SMTP FOUND INITIALLY.\n";
       return false;
     }
-    std::string tmp;
-    if (!ReadFileToVector(NameVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "sendername.txt") ||
-      !ReadFileToVector(SubjectVectorObject.MailDataSetVector, fs::path(EmailDataDirectory) / "subject.txt")) return false;
-
-    std::vector<std::string> leads;
-    if (!ReadFileToVector(leads, LEADSFILE)) {
-      std::cerr << "FAILED TO ACCESS LEADS FILE.\n";
-      return false;
-    }
-    clearScreen();
-    int totalSMTP = SMTPVectorObject.MailDataSetVector.size();
-    if (totalSMTP > 1) {
+    if (useAttachment) {
+      attachmentPath = MakeDirectory(EmailDataDirectory, "Attachment");
       clearScreen();
-      std::cout << totalSMTP << " SMTPS FOUND.\n"
-        << "Do you wanna set rate limit (Y/N): ";
-      std::cin >> tmp;
-      if (tmp == "Y" || tmp == "y") {
-        std::cout << "Specify send rate limit : ";
-        std::cin >> rateLimit;
+      std::cout << "Provide Attachment filename (e.g., file.pdf): ";
+      std::getline(std::cin >> std::ws, attachmentFileName);
+      if (attachmentFileName.empty()) {
+        std::cerr << "Invalid attachment filename. Using no attachment.\n";
+        useAttachment = false;
+      }
+      else {
+        attachmentFileName = fs::path(attachmentPath) / attachmentFileName;
       }
     }
+    if (SMTPVectorObject.MailDataSetVector.size() > 1) {
+      clearScreen();
+      std::cout << SMTPVectorObject.MailDataSetVector.size() << " SMTPS FOUND.\n"
+        << "Set rate limit (Y/N): ";
+      std::string tmp;
+      std::getline(std::cin >> std::ws, tmp);
+      if (tmp.empty() || (tmp != "Y" && tmp != "y" && tmp != "N" && tmp != "n")) {
+        std::cerr << "Invalid input. Rate limit not set.\n";
+      }
+      else if (tmp == "Y" || tmp == "y") {
+        std::cout << "Specify send rate limit: ";
+        if (!(std::cin >> rateLimit) || rateLimit < 0) {
+          std::cin.clear();
+          std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+          std::cerr << "Invalid rate limit. Rate limit not set.\n";
+          rateLimit = 0;
+        }
+      }
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
     clearScreen();
-    std::cout << "[SEND SPEED LIMIT PRESERVES SMTP LIFE]\n"
-      << "[SPEED LIMIT WORKS IN SECONDS]\n"
-      << "Set speed delay limit (default: 2): ";
-    std::cin >> sendspeed;
-    sendspeed = (sendspeed > 2) ? sendspeed : 2;
+    std::cout << "BLAST DELAY PRESERVES SMTP LIFE.\n"
+      << "SYSTEM DEFINED DELAY RANGE 10-15 SECONDS SIMULTANEOUSLY.\n"
+      << "NOTE: IF CUSTOM DELAY FALLS BELOW 5 SECONDS, PROGRAM FALLS BACK TO SYSTEM DEFINED DELAY.\n"
+      << "SET CUSTOM DELAY (MIN 5): ";
+    if (!(std::cin >> sendspeed) || sendspeed < 5) {
+      std::cin.clear();
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      std::cerr << "Invalid delay. Using system-defined delay.\n";
+      sendspeed = GenerateDelay();
+    }
+    else {
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
     std::string letter;
-    FetchDataFromFile(letterPath, letter);
-    CURL* curl;
-    CURLcode res;
-    curl_slist* recipients = nullptr;
+    if (!FetchDataFromFile(letterPath, letter)) {
+      std::cerr << "EMAIL LETTER NOT FOUND.\n";
+      return false;
+    }
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (!curl) return false;
-    SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+      std::cerr << "INITIALIZATION FAILED.\nPLEASE CHECK YOUR INTERNET OR VPN/PROXY IF IN USE.\n";
+      curl_global_cleanup();
+      return false;
+    }
+
+    SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+      SMTPAttributeObject.username, SMTPAttributeObject.password);
     clearScreenWithMessage("\t\t\t[EMAIL SENDER INITIALIZED]\n");
     for (const auto& lead : leads) {
-      if (sentCount > 0) {
-        sleep(sendspeed);
-      }
+      if (sentCount > 0) sleep(sendspeed);
       if (rateLimit > 0 && rateCount >= rateLimit) {
-        if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-          std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n";
-          std::cout << "LOAD MORE SMTP AND RETRY PROGRAM\n";
-          if (sentCount <= 0) {
-            return false;
-          }
-          break;
+        std::cout << "\n\nSEND RATE LIMIT SET IS REACHED FOR CURRENT SMTP\n[" << CURRENTSMTP << "]\n";
+        sleep(2);
+        std::cout << "LOADING NEW SMTP IN PROGRESS.\n";
+        if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
+          SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+          std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
+            << "LOAD MORE SMTP AND RETRY PROGRAM\n";
+          if (sentCount <= 0) return false;
         }
-        SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
-        rateCount = 0;
+        else {
+          SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+            SMTPAttributeObject.username, SMTPAttributeObject.password);
+          rateCount = 0;
+        }
       }
       sender = GetRandomDataFromVector(NameVectorObject.MailDataSetVector);
       subject = GetRandomDataFromVector(SubjectVectorObject.MailDataSetVector);
       if (!InsertVariableEmail(letter, lead, body)) {
-        clearScreen();
-        std::cerr
-          << "EMAIL VARIABLE NOT FOUND.\n"
+        std::cerr << "EMAIL VARIABLE NOT FOUND.\n"
           << "PLEASE USE CONSTANT EMAIL SENDER\n";
         curl_easy_cleanup(curl);
         curl_global_cleanup();
@@ -964,130 +1059,171 @@ public:
         sleep(3);
         return false;
       }
-      MakeEmailBody(emailBody, useHTML, useAttachment, boundary, SMTPAttributeObject.servername, sender, SMTPAttributeObject.username, subject, body, lead, attachmentFileName);
-
-      recipients = curl_slist_append(nullptr, lead.c_str());
+      MakeEmailBody(emailBody, useHTML, useAttachment, SMTPAttributeObject.servername,
+        sender, SMTPAttributeObject.username, subject, body, lead, attachmentFileName);
+      curl_slist* recipients = curl_slist_append(nullptr, lead.c_str());
       curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
       curl_easy_setopt(curl, CURLOPT_MAIL_FROM, SMTPAttributeObject.username.c_str());
       curl_easy_setopt(curl, CURLOPT_READDATA, &emailBody);
       curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
       curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
       curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
-      res = curl_easy_perform(curl);
+      CURLcode res = curl_easy_perform(curl);
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
+
       if (res == CURLE_OK && responseCode == 250) {
-        success = true;
-        retries = 0;
-        WriteDataToFile(SENTLEADSFILE, lead);
+        sentLeads << lead << '\n';
         sentCount++;
         rateCount++;
+        retries = 0;
         EMAILSUCCESSMESSAGE(sender, subject, lead, sentCount);
       }
       else {
-        if (res == CURLE_LOGIN_DENIED && responseCode == 535 || responseCode == 530 || responseCode == 534) {
-          WriteDataToFile(DEADSMTPFILE, CURRENTSMTP);
+        if (res == CURLE_LOGIN_DENIED || responseCode == 535 || responseCode == 530 || responseCode == 534) {
+          std::cout << "\n\nCURRENT SMTP [" << CURRENTSMTP << "] IS DEAD.\n";
+          deadSMTPs << CURRENTSMTP << '\n';
           POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
-          if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-            std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
-              << "LOAD MORE SMTP AND RETRY PROGRAM\n"
-              << "LOGIN DENIED\n";
-            break;
+          sleep(2);
+          std::cout << "LOADING NEW SMTP IN PROGRESS.\n";
+          if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
+            SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+            std::cout << "ALL SMTPS ARE USED UP OR UNAVAILABLE.\n"
+              << "LOAD MORE SMTP AND RETRY PROGRAM.\n";
+            if (sentCount <= 0) return false;
+          }
+          else {
+            SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+              SMTPAttributeObject.username, SMTPAttributeObject.password);
           }
         }
-        else if (res == CURLE_RECV_ERROR || res == CURLE_SEND_ERROR && responseCode == 452 || responseCode == 421 || responseCode == 451 || responseCode == 550) {
-          if (retries > 5) {
-            WriteDataToFile(LIMITEDSMTP, CURRENTSMTP);
+        else if ((res == CURLE_RECV_ERROR || res == CURLE_SEND_ERROR) &&
+          (responseCode == 452 || responseCode == 421 || responseCode == 451 || responseCode == 550)) {
+          if (retries >= 5) {
+            std::cout << "\n\nCURRENT SMTP [" << CURRENTSMTP << "] IS HIT LIMIT\n";
+            limitedSMTPs << CURRENTSMTP << '\n';
             POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
-            if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+            sleep(2);
+            std::cout << "LOADING NEW SMTP IN PROGRESS.\n";
+            if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
+              SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
               std::cout << "ALL SMTP USED UP OR UNAVAILABLE\n"
-                << "LOAD MORE SMTP AND RETRY PROGRAM\n"
-                << "RATE LIMIT HIT\n";
-              break;
+                << "LOAD MORE SMTP AND RETRY PROGRAM\n";
+              if (sentCount <= 0) return false;
+            }
+            else {
+              SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+                SMTPAttributeObject.username, SMTPAttributeObject.password);
+              retries = 0;
             }
           }
           else {
-            WriteDataToFile(FAILEDLEADFILE, lead);
+            failedLeads << lead << '\n';
             retries++;
             continue;
           }
         }
-        SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
+        else {
+          SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
+            SMTPAttributeObject.username, SMTPAttributeObject.password);
+          retries = 0;
+        }
       }
       curl_slist_free_all(recipients);
-      recipients = nullptr;
     }
+
     curl_easy_cleanup(curl);
     curl_global_cleanup();
+    sentLeads.close();
+    failedLeads.close();
+    deadSMTPs.close();
+    limitedSMTPs.close();
     DATACLEANUP(LEADSFILE, SENTLEADSFILE, FAILEDLEADFILE);
     DATACLEANUP(SMTPFILES, LIMITEDSMTP, DEADSMTPFILE);
-    if (!success) {
-      return false;
-    }
-    std::cout << "TOTAL SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
-    return true;
+
+    clearScreen();
+    if (sentCount > 0) std::cout << "TOTAL SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
+    return sentCount > 0;
   }
 
   // #: 3 SMTP LIVE TESTER
   bool SMTPLiveTester() {
-    CURL* curl;
-    CURLcode res;
-    long responseCode;
-    int port, smtpAssignCounter = 0, totalvalid = 0, totaldeadsmtp = 0;
-    std::unordered_set<std::string> invalidsmtp, validsmtp;
-    std::string optionStr, filename, servername, username, password, response, TESTEMAIL, boundary = "----=_Part_001_2345_67890";
+    int trials = 3;
+    const std::string sendername = "ECHOVSL SENDER";
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+      std::cerr << "CURL initialization failed.\n";
+      return false;
+    }
+
     std::string SMTPS = fs::path(SMTPLiveTesterDirectory) / "Raw.txt",
       FAILEDSMTPS = fs::path(SMTPLiveTesterDirectory) / "Failed.txt",
       LIVESMTPS = fs::path(SMTPLiveTesterDirectory) / "Live.txt";
 
     if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPS)) {
       std::cerr << "SMTP RAW FILE IS EMPTY.\n";
+      curl_easy_cleanup(curl);
       return false;
     }
+
+    std::string Email;
     clearScreen();
-    std::cout << "\t\t[SMTP PROGRAM IN PROCESS]\n\n";
-    std::cout << "Provide Email Address: ";
-    std::cin >> TESTEMAIL;
+    std::cout << "\t\t[SMTP LIVE TEST PROGRAM IN PROCESS]\n\nProvide Email Address: ";
+    std::cin >> Email;
+    while (Email.empty() || !isValidEmail(Email)) {
+      clearScreen();
+      if (trials-- <= 0) {
+        std::cerr << "Too many invalid attempts. Exiting program.\n";
+        curl_easy_cleanup(curl);
+        sleep(2);
+        return false;
+      }
+      std::cout << "\t\t[SMTP LIVE TEST PROGRAM IN PROCESS]\n\n"
+        << "Invalid Email Address.\nPlease enter a valid email address: ";
+      std::cin >> Email;
+    }
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    clearScreen();
-    std::cout << "\t\t[SMTP PROGRAM IN PROGRESS]\n\n";
-    sleep(1);
+    std::unordered_set<std::string> validsmtp, invalidsmtp;
+    int totalvalid = 0;
+    std::ofstream AvailableSMTPFile(LIVESMTPS, std::ios::app), UnavailableSMTPFile(FAILEDSMTPS, std::ios::app);
 
-    for (auto& smtp : SMTPVectorObject.MailDataSetVector) {
+    if (!AvailableSMTPFile || !UnavailableSMTPFile) {
+      std::cerr << "Failed to open output files.\n";
+      curl_easy_cleanup(curl);
+      curl_global_cleanup();
+      return false;
+    }
+    clearScreenWithMessage("\t\t[SMTP LIVE TEST PROGRAM PROGRESSING]\n");
+    for (const auto& smtp : SMTPVectorObject.MailDataSetVector) {
       std::stringstream ss(smtp);
+      std::string servername, username, password;
+      int port;
       std::getline(ss, servername, '|');
       ss >> port;
       ss.ignore();
       std::getline(ss, username, '|');
       std::getline(ss, password);
-      curl = curl_easy_init();
-      if (!curl) {
-        std::cerr << "PLEASE CHECK NETWORK CONNECTION" << std::endl;
-        return false;
-      }
-      struct curl_slist* recipients = nullptr;
-      recipients = curl_slist_append(recipients, TESTEMAIL.c_str());
-      response.clear();
+
+      struct curl_slist* recipients = curl_slist_append(nullptr, Email.c_str());
       const std::string data =
-        "Subject: SMTP TEST IS OK\r\n"
-        "From: <" +
-        username +
-        ">\r\n"
-        "To: <" +
-        TESTEMAIL +
-        ">\r\n"
+        "From: \"" + sendername + "\" <" + username + ">\r\n"
+        "To: <" + Email + ">\r\n"
+        "Subject: SMTP Connectivity Confirmation\r\n"
+        "Date: " + GetCurrentDateTime() + "\r\n"
+        "Message-ID: <" + std::to_string(time(nullptr)) + "." + GenerateUUID() + "@" + GetDomain(username, servername) + ">\r\n"
+        "Reply-To: \"" + sendername + "\" <" + username + ">\r\n"
+        "Return-Path: <" + username + ">\r\n"
         "MIME-Version: 1.0\r\n"
         "Content-Type: text/plain; charset=UTF-8\r\n"
-        "Message-ID: <" +
-        std::to_string(time(nullptr)) + "@" + username +
-        ">\r\n"
-        "\r\n"
-        "SMTP: " + username +
-        "\r\n"
-        "THIS SMTP IS STILL WORKING.\r\n"
-        "\r\n"
-        "[TELEGRAM: ECHOVSL]\r\n"
-        "\r\n";
+        "Content-Transfer-Encoding: quoted-printable\r\n"
+        "\r\n" +
+        QuotedPrintableEncode(
+          "Hello Friend,\r\n\r\n"
+          "This is a protocol message test to agree the functionality of our email service.\r\n"
+          "Best regards,\r\n" + sendername + "\r\n"
+          "[Contact] TG: ECHOVSL\r\n"
+        ) + "\r\n";
+
       SetCurlForMail(curl, servername, port, username, password);
       curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
       curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
@@ -1095,48 +1231,32 @@ public:
       curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
       curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
       curl_easy_setopt(curl, CURLOPT_READDATA, &data);
-      res = curl_easy_perform(curl);
+
+      long responseCode;
+      CURLcode res = curl_easy_perform(curl);
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
+
       if (res == CURLE_OK && responseCode == 250) {
         SMTPSUCCESSMESSAGE(smtp);
         validsmtp.insert(smtp);
+        AvailableSMTPFile << smtp << '\n';
         totalvalid++;
       }
       else {
         SMTPFAILEDMESSAGE(smtp);
         invalidsmtp.insert(smtp);
+        UnavailableSMTPFile << smtp << '\n';
       }
       curl_slist_free_all(recipients);
     }
 
     curl_easy_cleanup(curl);
     curl_global_cleanup();
-    clearScreen();
-    std::cout << std::endl;
-    totalvalid > 1 ?
-      std::cout << totalvalid << " SMTPS ARE TESTED VALID.\n" :
-      std::cout << totalvalid << " SMTP IS TESTED VALID.\n";
-    std::cout << std::endl;
-
-
-    std::fstream AvailableSMTPFile(LIVESMTPS, std::ios::app), UnavailableSMTPFile(FAILEDSMTPS, std::ios::app);
-    if (!AvailableSMTPFile || !UnavailableSMTPFile) {
-      std::cout << "[VALID SMTPS]" << std::endl;
-      for (const auto& smtp : validsmtp) {
-        std::cout << smtp << std::endl;
-      }
-      std::cout << "\n";
-      return true;
-    }
-    for (const auto& smtp : validsmtp) {
-      AvailableSMTPFile << smtp << std::endl;
-    }
-    for (const auto& smtp : invalidsmtp) {
-      UnavailableSMTPFile << smtp << std::endl;
-    }
     AvailableSMTPFile.close();
     UnavailableSMTPFile.close();
-    std::cout << std::endl;
+
+    clearScreen();
+    std::cout << "\n" << totalvalid << " SMTP" << (totalvalid == 1 ? " IS" : "S ARE") << " TESTED VALID.\n\n";
     return true;
   }
 
@@ -1253,7 +1373,7 @@ void DisplayStartMenu(int& option) {
   std::string optionStr;
   std::cout << "\033[91m"
     << "\033[1m"
-    << "\t[ECHO MAILER V1 : TELEGRAM H4CKECHO]\n\n"
+    << "\t[ECHO MAILER V2 : TELEGRAM H4CKECHO]\n\n"
     << "\033[94m" << "[1] " << "\033[93m" << "EMAIL SENDER\n"
     << "\033[94m" << "[2] " << "\033[93m" << "SMTP MAIL TESTER\n"
     << "\033[94m" << "[3] " << "\033[93m" << "EMAIL LEAD EXTRACTOR\n"
