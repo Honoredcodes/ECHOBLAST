@@ -10,7 +10,7 @@ install_brew_pkg() {
         echo "✅ $1 is already installed."
     else
         echo "📦 Installing $1..."
-        brew install "$1"
+        brew install "$1" || { echo "❌ Failed to install $1"; exit 1; }
     fi
 }
 
@@ -19,7 +19,7 @@ install_apt_pkg() {
         echo "✅ $1 is already installed."
     else
         echo "📦 Installing $1..."
-        sudo apt install -y "$1"
+        sudo apt install -y "$1" || { echo "❌ Failed to install $1"; exit 1; }
     fi
 }
 
@@ -36,17 +36,16 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     fi
 
     brew update
+    install_brew_pkg pkg-config
     install_brew_pkg curl
     install_brew_pkg jsoncpp
-
-    echo "🛠️  Compiling on macOS..."
-    g++ -std=c++17 -o program main.cpp -I/opt/homebrew/Cellar/jsoncpp/1.9.6/include -I/usr/include -L/opt/homebrew/Cellar/jsoncpp/1.9.6/lib -L/opt/homebrew/opt/curl/lib -ljsoncpp -lcurl
+    install_brew_pkg cmake
+    install_brew_pkg gcc
 
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     echo "🐧 Linux detected."
 
     sudo apt update
-
     install_apt_pkg build-essential
     install_apt_pkg g++
     install_apt_pkg cmake
@@ -54,16 +53,14 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     install_apt_pkg libjsoncpp-dev
     install_apt_pkg pkg-config
 
-    echo "🛠️  Compiling on Linux..."
-    g++ -std=c++17 -o program main.cpp \
-        -ljsoncpp -lcurl
-
 else
     echo "❌ Unsupported OS: $OSTYPE"
     exit 1
 fi
 
 echo ""
-sleep 3
-clear
-echo "✅ Build completed, run program with ./program"
+echo "✅ All dependencies installed successfully."
+echo "🚀 You can now build the program by running:"
+echo ""
+echo "    make"
+echo ""
