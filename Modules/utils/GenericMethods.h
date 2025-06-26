@@ -1,13 +1,6 @@
 #ifndef GLOBAL_METHOD_CLASS_H
 #define GLOBAL_METHOD_CLASS_H
-
 #include <string>
-#include <vector>
-#include <functional>
-#include <filesystem>
-#include <map>
-
-namespace fs = std::filesystem;
 
 class GlobalMethodClass {
 public:
@@ -18,7 +11,7 @@ public:
     bool ReadFileToVector(std::vector<std::string>& FileVector, const std::string& filepath);
     void WriteDataToFile(const std::string FilePath, std::string data);
     bool FetchDataFromFile(const std::string FilePath, std::string& VariableStorage);
-    void DATACLEANUP(const std::string leadfile, const std::string sentleads, const std::string failedleads);
+    void DATACLEANUP(const std::string& sourcePath, const std::vector<std::string>& excludePaths);
 
     // 2. SMTP and Email Processing
     bool FETCHSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password);

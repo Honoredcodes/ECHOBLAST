@@ -7,6 +7,8 @@
 #include "./Modules/email/email_program_header.h"
 #include "./Modules/utils/GenericMethods.h"
 
+GlobalMethodClass GlobalMethodObject;
+
 bool setWorkingDirectoryToExecutablePath() {
   char path[PATH_MAX];
   uint32_t size = sizeof(path);
@@ -17,8 +19,7 @@ bool setWorkingDirectoryToExecutablePath() {
   return true;
 }
 
-GlobalMethodClass GlobalMethodObject;
-EmailSenderProgram EmailProgramObject;
+
 
 void DisplayStartMenu(int& option) {
   std::string optionStr;
@@ -50,10 +51,11 @@ void TerminateProgram() {
 }
 
 int main(void) {
+  EmailSenderProgram EmailProgramObject;
 
-  if (!setWorkingDirectoryToExecutablePath()) {
-    std::cerr << "[ERR]: PROGRAM FAILED TO SET WORKING REDIRECTORY\n";
-    return 1;
+  if (setWorkingDirectoryToExecutablePath()) {
+    std::cerr << "PROGRAM SET TO SET WORKING REDIRECTORY\n";
+
   }
 
   std::string optionStr;

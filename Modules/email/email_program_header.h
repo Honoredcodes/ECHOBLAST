@@ -21,20 +21,22 @@ private:
 public:
     MailDataSet SMTPVectorObject, NameVectorObject, SubjectVectorObject;
     MailDataSet::SMTPAttribute SMTPAttributeObject;
-    std::string EmailSenderPrograms;
+    std::string EmailSenderPrograms = "Main Directory";
 
     EmailSenderProgram();
+    ~EmailSenderProgram() = default;
 
-    // Email Sender Global Variables
-    std::string EmailProgramDirectory;
-    std::string EmailDataDirectory;
-    std::string EmailJunkDirectory;
+    // EMAIL SENDER GLOBAL VARIABLES
+    std::string EmailProgramDirectory = "Email Sender";
+    std::string EmailDataDirectory = "Data";
+    std::string EmailJunkDirectory = "Trash";
     std::vector<std::string> ProgramAttributeVector;
 
-    // SMTP Live Tester Global Variables
-    std::string SMTPLiveTesterDirectory;
-    std::string EmailExtractorDirectory;
-    std::string DuplicateRemoval;
+    // SMTP LIVE TESTER GLOBAL VARIABLES
+    std::string SMTPLiveTesterDirectory = "Smtp Tester";
+    std::string EmailExtractorDirectory = "Email Extractor";
+    std::string DuplicateRemoval = "Duplicate Remover";
+
 
     bool PrepareEmailSenderDirectories();
     bool PrepareSMTPLiveTesterDirectories();

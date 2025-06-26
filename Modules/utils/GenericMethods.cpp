@@ -18,7 +18,8 @@
 #include <functional>
 #include <map>
 #include <stdexcept>
-
+#include <future>
+#include <mutex>
 #include "GenericMethods.h"
 
 namespace fs = std::filesystem;
@@ -112,53 +113,106 @@ bool GlobalMethodClass::FetchDataFromFile(const std::string FilePath, std::strin
     return true;
 }
 
-void GlobalMethodClass::DATACLEANUP(const std::string leadfile, const std::string sentleads, const std::string failedleads) {
-    std::ifstream newfile(leadfile);
-    std::ifstream sentfiles(sentleads);
-    std::ifstream failedfiles(failedleads);
-    if (!newfile || !sentfiles || !failedfiles) {
-        std::cerr << "Error: Unable to open these files.\n"
-            << leadfile << std::endl
-            << sentleads << std::endl
-            << failedleads << std::endl;
+void GlobalMethodClass::DATACLEANUP(const std::string& sourcePath, const std::vector<std::string>& excludePaths) {
+    std::ifstream sourceFile(sourcePath);
+    if (!sourceFile) {
+        std::cerr << "[ERR]: CLEAN UP CANNOT READ SOURCE FILE" << std::endl;
         return;
     }
-    std::unordered_set<std::string> leadset;
+
+    std::unordered_set<std::string> entries;
     std::string line;
 
-    while (std::getline(newfile, line)) {
+    while (std::getline(sourceFile, line)) {
         if (!line.empty()) {
-            leadset.insert(line);
+            entries.insert(line);
         }
     }
-    while (std::getline(sentfiles, line)) {
-        if (!line.empty()) {
-            leadset.erase(line);
+    sourceFile.close();
+
+    auto readExclusions = [](const std::string& path) -> std::unordered_set<std::string> {
+        std::unordered_set<std::string> set;
+        std::ifstream file(path);
+        if (!file) {
+            std::cerr << "[WAR]: CLEAN UP FAILED TO OPEN EXCLUDE FILES" << std::endl;
+            return set;
+        }
+        std::string line;
+        while (std::getline(file, line)) {
+            if (!line.empty()) {
+                set.insert(line);
+            }
+        }
+        return set;
+        };
+
+    std::vector<std::future<std::unordered_set<std::string>>> futures;
+    for (const auto& path : excludePaths) {
+        futures.push_back(std::async(std::launch::async, readExclusions, path));
+    }
+
+    for (auto& future : futures) {
+        for (const auto& excludeEntry : future.get()) {
+            entries.erase(excludeEntry);
         }
     }
-    while (std::getline(failedfiles, line)) {
-        if (!line.empty()) {
-            leadset.erase(line);
-        }
-    }
-    std::ofstream leadfileout(leadfile, std::ios::out);
-    if (!leadfileout) {
-        std::cerr << "Error: Failed to clean up " << leadfile << std::endl;
+
+    std::ofstream outFile(sourcePath, std::ios::trunc);
+    if (!outFile) {
+        std::cerr << "[ERR]: CLEAN UP FAILED TO WRITE TO SOURCE FILE" << std::endl;
         return;
     }
 
-    if (!leadset.empty()) {
-        for (const auto& lead : leadset) {
-            leadfileout << lead << std::endl;
-        }
-        std::cout << "LEAD CLEANUP COMPLETED.\n"
-            << leadset.size() << " REMAINING LEADS UNSENT." << std::endl;
+    for (const auto& entry : entries) {
+        outFile << entry << '\n';
     }
-    leadfileout.close();
-    newfile.close();
-    sentfiles.close();
-    failedfiles.close();
+
+    std::cout << "CLEAN UP COMPLETED. " << entries.size() << " REMAINING DATA RETURNED SOURCE FILE" << std::endl;
 }
+// void GlobalMethodClass::DATACLEANUP(const std::string& sourcePath, const std::vector<std::string>& excludePaths) {
+//     std::ifstream sourceFile(sourcePath);
+//     if (!sourceFile) {
+//         std::cerr << "Error: Cannot open source file: " << sourcePath << std::endl;
+//         return;
+//     }
+
+//     std::unordered_set<std::string> entries;
+//     std::string line;
+
+//     while (std::getline(sourceFile, line)) {
+//         if (!line.empty()) {
+//             entries.insert(line);
+//         }
+//     }
+//     sourceFile.close();
+
+//     for (const auto& path : excludePaths) {
+//         std::ifstream excludeFile(path);
+//         if (!excludeFile) {
+//             std::cerr << "Warning: Cannot open exclude file: " << path << std::endl;
+//             continue;
+//         }
+
+//         while (std::getline(excludeFile, line)) {
+//             if (!line.empty()) {
+//                 entries.erase(line);
+//             }
+//         }
+//         excludeFile.close();
+//     }
+
+//     std::ofstream outFile(sourcePath, std::ios::trunc);
+//     if (!outFile) {
+//         std::cerr << "Error: Cannot write to source file: " << sourcePath << std::endl;
+//         return;
+//     }
+
+//     for (const auto& entry : entries) {
+//         outFile << entry << '\n';
+//     }
+
+//     std::cout << "CLEAN UP COMPLETED. " << entries.size() << " REMAINING DATA RETURNED SOURCE FILE" << std::endl;
+// }
 
 // 2. SMTP && EMAIL PROCESSING
 bool GlobalMethodClass::FETCHSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password) {
@@ -177,7 +231,6 @@ bool GlobalMethodClass::FETCHSMTP(std::vector<std::string>& Vector, std::string&
         port = std::stoi(portStr);
     }
     catch (const std::exception& e) {
-        std::cerr << "Port failed to parse because " << e.what() << std::endl;
         return false;
     }
     return true;
@@ -200,7 +253,6 @@ bool GlobalMethodClass::LOADSMTP(std::vector<std::string>& Vector, std::string& 
         port = std::stoi(portStr);
     }
     catch (const std::exception& e) {
-        std::cerr << "Port failed to parse because " << e.what() << std::endl;
         return false;
     }
     index++;

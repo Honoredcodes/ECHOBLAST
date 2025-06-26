@@ -1,4 +1,4 @@
-#include "email_program_header.h" // Include the header file
+#include "email_program_header.h"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -79,6 +79,7 @@ bool EmailSenderProgram::PrepareDuplicateDirectories() {
 
 
 bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
+    clearScreen();
     std::string LEADSFILE = fs::path(EmailDataDirectory) / "leads.txt";
     std::string letterPath = fs::path(EmailDataDirectory) / "letter.txt";
     std::string SENTLEADSFILE = fs::path(EmailDataDirectory) / "sentleads.txt";
@@ -293,8 +294,18 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
     failedLeads.close();
     deadSMTPs.close();
     limitedSMTPs.close();
-    DATACLEANUP(LEADSFILE, SENTLEADSFILE, FAILEDLEADFILE);
-    DATACLEANUP(SMTPFILES, LIMITEDSMTP, DEADSMTPFILE);
+
+    std::vector<std::string> LEADCLEANUP = { SENTLEADSFILE, FAILEDLEADFILE };
+    std::vector<std::string> SMTPCLEANUP = { DEADSMTPFILE, LIMITEDSMTP };
+
+    DATACLEANUP(LEADSFILE, LEADCLEANUP);
+    DATACLEANUP(SMTPFILES, SMTPCLEANUP);
+
+    LEADCLEANUP.clear();
+    SMTPCLEANUP.clear();
+    SMTPVectorObject.MailDataSetVector.clear();
+    NameVectorObject.MailDataSetVector.clear();
+    SubjectVectorObject.MailDataSetVector.clear();
 
     clearScreen();
     if (sentCount > 0) std::cout << "PROGRAM SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
@@ -529,8 +540,18 @@ bool EmailSenderProgram::VariableEmailSender(bool useHTML, bool useAttachment) {
     failedLeads.close();
     deadSMTPs.close();
     limitedSMTPs.close();
-    DATACLEANUP(LEADSFILE, SENTLEADSFILE, FAILEDLEADFILE);
-    DATACLEANUP(SMTPFILES, LIMITEDSMTP, DEADSMTPFILE);
+
+    std::vector<std::string> LEADCLEANUP = { SENTLEADSFILE, FAILEDLEADFILE };
+    std::vector<std::string> SMTPCLEANUP = { DEADSMTPFILE, LIMITEDSMTP };
+
+    DATACLEANUP(LEADSFILE, LEADCLEANUP);
+    DATACLEANUP(SMTPFILES, SMTPCLEANUP);
+
+    LEADCLEANUP.clear();
+    SMTPCLEANUP.clear();
+    SMTPVectorObject.MailDataSetVector.clear();
+    NameVectorObject.MailDataSetVector.clear();
+    SubjectVectorObject.MailDataSetVector.clear();
 
     clearScreen();
     if (sentCount > 0) std::cout << "PROGRAM SUCCESSFULLY SENT EMAIL TO " << sentCount << " LEADS \n";
