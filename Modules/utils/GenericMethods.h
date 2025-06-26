@@ -1,6 +1,7 @@
 #ifndef GLOBAL_METHOD_CLASS_H
 #define GLOBAL_METHOD_CLASS_H
 #include <string>
+#include <functional>
 
 class GlobalMethodClass {
 public:
@@ -48,7 +49,7 @@ public:
     bool askYesNoQuestion(const std::string& question);
     void PrintTopMiddle(const std::string text);
     void sleep(const int& x);
-    void prompt(std::function<void()> main);
+    void prompt(std::function<int()> main);
     void PromptSendDelayMessage();
 };
 

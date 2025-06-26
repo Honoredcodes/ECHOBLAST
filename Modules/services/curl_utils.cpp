@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <cstring>
 #include <curl/curl.h>
 
 size_t writeCallback(void* contents, size_t size, size_t nmemb, void* userp) {

@@ -653,7 +653,7 @@ void GlobalMethodClass::sleep(const int& x) {
     std::this_thread::sleep_for(std::chrono::seconds(x));
 }
 
-void GlobalMethodClass::prompt(std::function<void()> main) {
+void GlobalMethodClass::prompt(std::function<int()> main) {
     std::string optionStr;
     std::cout << std::endl
         << "Do you want to retry the program? (Y/N): ";
