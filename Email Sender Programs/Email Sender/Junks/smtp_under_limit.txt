@@ -1,3 +1,0 @@
-smtp.mail.me.com|587|boraxryayakssaravc@icloud.com|atrd-ouul-hsxl-wcnd
-smtp.mail.me.com|587|boraxryayakssaravc@icloud.com|atrd-ouul-hsxl-wcnd
-smtp.mail.me.com|587|boraxryayakssaravc@icloud.com|atrd-ouul-hsxl-wcnd
