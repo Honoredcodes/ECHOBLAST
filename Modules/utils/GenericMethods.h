@@ -15,7 +15,7 @@ public:
 
     // 2. SMTP and Email Processing
     bool FETCHSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password);
-    bool LOADSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password, int& index);
+    bool LOADSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password, size_t& index);
     void stripdata(std::string& server, std::string& port);
     bool isValidEmail(const std::string& email);
     std::string GetDomain(const std::string& username, const std::string& servername);

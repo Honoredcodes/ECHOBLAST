@@ -236,7 +236,7 @@ bool GlobalMethodClass::FETCHSMTP(std::vector<std::string>& Vector, std::string&
     return true;
 }
 
-bool GlobalMethodClass::LOADSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password, int& index) {
+bool GlobalMethodClass::LOADSMTP(std::vector<std::string>& Vector, std::string& CURRENTSMTP, std::string& servername, int& port, std::string& username, std::string& password, size_t& index) {
     if (Vector.empty()) return false;
 
     if (index >= Vector.size()) index = 0;

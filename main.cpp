@@ -1,21 +1,41 @@
 #include <iostream>
-#include <mach-o/dyld.h>
 #include <unistd.h>
 #include <libgen.h>
 #include <limits.h>
+#include <string>
 
 #include "./Modules/email/email_program_header.h"
 #include "./Modules/utils/GenericMethods.h"
 
 GlobalMethodClass GlobalMethodObject;
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 bool setWorkingDirectoryToExecutablePath() {
   char path[PATH_MAX];
+
+#ifdef __APPLE__
   uint32_t size = sizeof(path);
-  if (_NSGetExecutablePath(path, &size) != 0) return false;
+  if (_NSGetExecutablePath(path, &size) != 0)
+    return false;
+#elif defined(__linux__)
+  ssize_t count = readlink("/proc/self/exe", path, PATH_MAX);
+  if (count == -1)
+    return false;
+  path[count] = '\0';
+#else
+  return false; // Unsupported OS
+#endif
+
   char resolved[PATH_MAX];
-  if (realpath(path, resolved) == nullptr)return false;
-  if (chdir(dirname(resolved)) != 0) return false;
+  if (realpath(path, resolved) == nullptr)
+    return false;
+
+  if (chdir(dirname(resolved)) != 0)
+    return false;
+
   return true;
 }
 

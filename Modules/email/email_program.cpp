@@ -90,7 +90,8 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
     std::string SENDERNAMESFILE = fs::path(EmailDataDirectory) / "sendername.txt";
     std::string SUBJECTSFILE = fs::path(EmailDataDirectory) / "subject.txt";
     std::string letter, attachmentPath, emailBody, attachmentFileName, sender, subject, CURRENTSMTP;
-    int sentCount = 0, rateLimit = 0, rateCount = 0, index = 0, retries = 0, sendspeed, userinput;
+    int sentCount = 0, rateLimit = 0, rateCount = 0, retries = 0, sendspeed, userinput;
+    size_t index = 0;
     bool flag = false;
     long responseCode;
     std::vector<std::string> leads;
@@ -324,8 +325,9 @@ bool EmailSenderProgram::VariableEmailSender(bool useHTML, bool useAttachment) {
     std::string SENDERNAMESFILE = fs::path(EmailDataDirectory) / "sendername.txt";
     std::string SUBJECTSFILE = fs::path(EmailDataDirectory) / "subject.txt";
     std::string letter, body, attachmentPath, emailBody, attachmentFileName, sender, subject, CURRENTSMTP;
-    int sentCount = 0, rateLimit = 0, rateCount = 0, index = 0, retries = 0, sendspeed, userinput;
+    int sentCount = 0, rateLimit = 0, rateCount = 0, retries = 0, sendspeed, userinput;
     bool flag = false;
+    size_t index = 0;
     long responseCode;
     std::vector<std::string> leads;
     std::ofstream sentLeads(SENTLEADSFILE, std::ios::app), failedLeads(FAILEDLEADFILE, std::ios::app),
