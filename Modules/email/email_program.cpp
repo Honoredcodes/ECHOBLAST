@@ -137,12 +137,19 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
             << "DO YOU WANT TO SET SEND RATE PER SMTP: (Y/N): ";
         std::string tmp;
         std::getline(std::cin >> std::ws, tmp);
-        if (tmp.empty() || (tmp != "Y" && tmp != "y" && tmp != "N" && tmp != "n")) std::cerr << "INVALID RESPONSE, RATE LIMIT NOT SET.\n";
+        while (tmp.empty() || (tmp != "Y" && tmp != "y" && tmp != "N" && tmp != "n")) {
+            clearScreen();
+            std::cin.clear();
+            std::cerr << "INVALID RESPONSE, RATE LIMIT NOT SET.\n";
+            std::cout << "DO YOU WANT TO SET SEND RATE PER SMTP: (Y/N): ";
+            std::getline(std::cin >> std::ws, tmp);
+        }
+
         if (tmp == "Y" || tmp == "y") {
+            clearScreen();
             std::cout << "SET SEND RATE VALUE PER SMTP: ";
             if (!(std::cin >> rateLimit) || rateLimit < 0) {
                 std::cin.clear();
-                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                 std::cerr << "INVALID INPUT, RATE LIMIT NOT SET.\n";
                 rateLimit = 0;
             }
