@@ -19,13 +19,13 @@ namespace fs = std::filesystem;
 
 // Constructor implementation
 EmailSenderProgram::EmailSenderProgram() {
-    EmailSenderPrograms = MakeDirectory("", EmailSenderPrograms);
+    ParentEmailSenderDirectory = MakeDirectory("", ParentEmailSenderDirectory);
 }
 
 // PrepareEmailSenderDirectories implementation
-bool EmailSenderProgram::PrepareEmailSenderDirectories() {
+bool EmailSenderProgram::PrepareEmailSenderDirectories(const std::string type) {
     ProgramAttributeVector = { "smtps.txt", "sendername.txt", "subject.txt", "letter.txt", "leads.txt", "sentleads.txt", "failedleads.txt", "deadsmtps.txt", "smtps_under_limit.txt" };
-    if (!CreateProgramDirectories(EmailSenderPrograms, EmailProgramDirectory, EmailDataDirectory, EmailJunkDirectory)) return false;
+    if (!CreateProgramDirectories(ParentEmailSenderDirectory, EmailProgramDirectory, type, EmailDataDirectory, EmailJunkDirectory)) return false;
     CreateProgramAttributeFiles(EmailDataDirectory, EmailJunkDirectory, ProgramAttributeVector);
     return true;
 }
@@ -34,7 +34,7 @@ bool EmailSenderProgram::PrepareEmailSenderDirectories() {
 bool EmailSenderProgram::PrepareSMTPLiveTesterDirectories() {
     ProgramAttributeVector.clear();
     ProgramAttributeVector = { "Raw.txt", "Failed.txt", "Live.txt" };
-    SMTPLiveTesterDirectory = MakeDirectory(EmailSenderPrograms, SMTPLiveTesterDirectory);
+    SMTPLiveTesterDirectory = MakeDirectory(ParentEmailSenderDirectory, SMTPLiveTesterDirectory);
     clearScreen();
     for (auto& file : ProgramAttributeVector) {
         std::string filePath = fs::path(SMTPLiveTesterDirectory) / file;
@@ -50,7 +50,7 @@ bool EmailSenderProgram::PrepareSMTPLiveTesterDirectories() {
 bool EmailSenderProgram::PrepareEmailExtractorDirectories() {
     ProgramAttributeVector.clear();
     ProgramAttributeVector = { "Raw.txt", "Result.txt" };
-    EmailExtractorDirectory = MakeDirectory(EmailSenderPrograms, EmailExtractorDirectory);
+    EmailExtractorDirectory = MakeDirectory(ParentEmailSenderDirectory, EmailExtractorDirectory);
     for (auto& file : ProgramAttributeVector) {
         std::string FilePath = fs::path(EmailExtractorDirectory) / file;
         std::fstream CreateFile(FilePath, std::ios::app);
@@ -63,7 +63,7 @@ bool EmailSenderProgram::PrepareEmailExtractorDirectories() {
 bool EmailSenderProgram::PrepareDuplicateDirectories() {
     ProgramAttributeVector.clear();
     ProgramAttributeVector = { "Raw.txt", "Result.txt" };
-    DuplicateRemoval = MakeDirectory(EmailSenderPrograms, DuplicateRemoval);
+    DuplicateRemoval = MakeDirectory(ParentEmailSenderDirectory, DuplicateRemoval);
     for (auto& file : ProgramAttributeVector) {
         std::string FilePath = fs::path(DuplicateRemoval) / file;
         std::fstream CreateFile(FilePath, std::ios::app);
@@ -95,6 +95,7 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
     bool flag = false;
     long responseCode;
     std::vector<std::string> leads;
+    std::unordered_map<std::string, int> CoolDownMap;
     std::ofstream sentLeads(SENTLEADSFILE, std::ios::app), failedLeads(FAILEDLEADFILE, std::ios::app),
         deadSMTPs(DEADSMTPFILE, std::ios::app), limitedSMTPs(LIMITEDSMTP, std::ios::app);
     if (!sentLeads || !failedLeads || !deadSMTPs || !limitedSMTPs) {
@@ -242,11 +243,18 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
         }
         else {
             if (res == CURLE_LOGIN_DENIED || responseCode == 535 || responseCode == 530 || responseCode == 534) {
-                std::cout << "\n\nCURRENT SMTP [" << CURRENTSMTP << "] IS DEAD.\n";
-                deadSMTPs << CURRENTSMTP << '\n';
-                POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
-                std::cout << "\nLOADING NEW SMTP IN PROGRESS.\n";
-                sleep(1);
+                std::cout << "[INFO] CURRENT SMTP [" << CURRENTSMTP << "] IS TROTTLED\n";
+                std::cout << "[INFO] COOLING DOWN CURRENT SMTP [" << CURRENTSMTP << "]\n";
+                CoolDownMap[CURRENTSMTP]++;
+                if (CoolDownMap[CURRENTSMTP] >= 8) {
+                    deadSMTPs << CURRENTSMTP << '\n';
+                    clearScreen();
+                    std::cout << "\n\n[WAR] CURRENT SMTP [" << CURRENTSMTP << "] IS DEAD.\n";
+                    POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
+                    std::cout << "\n[INFO] PROGRAM LOADING A NEW SMTP TO KEEP PROGRESS.\n";
+                    sleep(1);
+                }
+
                 if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
                     SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
                     std::cout << "ALL SMTPS ARE USED UP OR UNAVAILABLE.\n"
@@ -254,8 +262,9 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
                     break;
                 }
                 else {
-                    std::cout << "NEW SMTP [" << CURRENTSMTP << "] IS LOADED.\n";
-                    std::cout << "RETRYING TO SEND EMAIL TO " << lead << " WITH NEW SMTP.\n\n";
+                    clearScreen();
+                    std::cout << "[INFO] NEW SMTP [" << CURRENTSMTP << "] IS LOADED.\n";
+                    std::cout << "[INFO] RETRYING TO SEND EMAIL TO " << lead << " WITH NEW SMTP.\n\n";
                     SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
                         SMTPAttributeObject.username, SMTPAttributeObject.password);
                 }

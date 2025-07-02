@@ -42,8 +42,9 @@ std::string GlobalMethodClass::MakeDirectory(const std::string& path, const std:
     return "";
 }
 
-bool GlobalMethodClass::CreateProgramDirectories(std::string BaseProgramDirectory, std::string& ChildProgramDirectory, std::string& ProgramAttributeDirectory, std::string& Junks) {
+bool GlobalMethodClass::CreateProgramDirectories(std::string BaseProgramDirectory, std::string& ChildProgramDirectory, const std::string type, std::string& ProgramAttributeDirectory, std::string& Junks) {
     ChildProgramDirectory = GlobalMethodClass::MakeDirectory(BaseProgramDirectory, ChildProgramDirectory);
+    ChildProgramDirectory = GlobalMethodClass::MakeDirectory(ChildProgramDirectory, type);
     ProgramAttributeDirectory = GlobalMethodClass::MakeDirectory(ChildProgramDirectory, ProgramAttributeDirectory);
     Junks = GlobalMethodClass::MakeDirectory(ChildProgramDirectory, Junks);
     return (!BaseProgramDirectory.empty() && !ChildProgramDirectory.empty() && !ProgramAttributeDirectory.empty() && !Junks.empty()) ? true : false;
@@ -656,7 +657,7 @@ void GlobalMethodClass::sleep(const int& x) {
 void GlobalMethodClass::prompt(std::function<int()> main) {
     std::string optionStr;
     std::cout << std::endl
-        << "Do you want to retry the program? (Y/N): ";
+        << "\nGOTO MENU? (Y/N): ";
     std::cin >> optionStr;
     if (optionStr == "Y" || optionStr == "y") {
         main();
@@ -664,17 +665,20 @@ void GlobalMethodClass::prompt(std::function<int()> main) {
     clearScreen();
 }
 
+// 6. DELAY HANDLING
+// This function shuffles and generates a random delay from a predefined set of delays, 
+// ensure randomness and returns the next delay in the sequence.
 int GlobalMethodClass::GenerateDelay() {
-    static int delays[] = { 10, 11, 12, 13, 14, 15 };
-    static int size = 6;
+    static int delays[] = { 15, 18, 20, 25, 30, 35, 42, 38 };
+    static const int delaysCount = sizeof(delays) / sizeof(delays[0]);
+    static int currentIndex = delaysCount;
     static std::mt19937 rng(std::random_device{}());
-
-    if (size == 0) {
-        size = 6;
-        std::shuffle(delays, delays + size, rng);
+    if (currentIndex == delaysCount) {
+        std::shuffle(delays, delays + delaysCount, rng);
+        currentIndex = 0;
     }
 
-    return delays[--size];
+    return delays[currentIndex++];
 }
 
 void GlobalMethodClass::DelayHandler(int& sendspeed, int res, bool flag) {

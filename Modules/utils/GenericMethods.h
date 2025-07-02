@@ -7,7 +7,7 @@ class GlobalMethodClass {
 public:
     // 1. Directory and File Operations
     std::string MakeDirectory(const std::string& path, const std::string& folderName);
-    bool CreateProgramDirectories(std::string BaseProgramDirectory, std::string& ChildProgramDirectory, std::string& ProgramAttributeDirectory, std::string& Junks);
+    bool CreateProgramDirectories(std::string BaseProgramDirectory, std::string& ChildProgramDirectory, const std::string type, std::string& ProgramAttributeDirectory, std::string& Junks);
     void CreateProgramAttributeFiles(std::string& ProgramAttributeDirectory, std::string& Junks, std::vector<std::string>& ProgramAttributeVector);
     bool ReadFileToVector(std::vector<std::string>& FileVector, const std::string& filepath);
     void WriteDataToFile(const std::string FilePath, std::string data);

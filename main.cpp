@@ -107,8 +107,8 @@ int main(void) {
       DisplayStartMenu(option);
     }
     if (optionStr == "1") {
-      if (!EmailProgramObject.PrepareEmailSenderDirectories()) {
-        std::cerr << "Error: Program failed to create Email Sender directories\n";
+      if (!EmailProgramObject.PrepareEmailSenderDirectories("CONSTANT")) {
+        std::cerr << "ERROR: PROGRAM FAILED TO CREATE EMAIL SENDER DIRECTORIES\n";
         return 1;
       }
       GlobalMethodObject.clearScreenWithMessage("\t\t[EMAIL SENDER IN PROCESS]\n");
@@ -119,8 +119,8 @@ int main(void) {
       GlobalMethodObject.handleProgramCompletion(success, "CONSTANT EMAIL SENDER");
     }
     else if (optionStr == "2") {
-      if (!EmailProgramObject.PrepareEmailSenderDirectories()) {
-        std::cerr << "Error: Program failed to create Email Sender directories\n";
+      if (!EmailProgramObject.PrepareEmailSenderDirectories("VARIABLE")) {
+        std::cerr << "ERROR: PROGRAM FAILED TO CREATE EMAIL SENDER DIRECTORIES\n";
         return 1;
       }
       GlobalMethodObject.clearScreenWithMessage("\t\t[EMAIL SENDER IN PROCESS]\n");
@@ -138,8 +138,8 @@ int main(void) {
       break;
     }
     std::cout
-      << "Make sure 'Raw.txt' is not empty.\n"
-      << "Do you wanna continue (Y/N): ";
+      << "MAKE SURE, 'Raw.txt' IS NOT EMPTY.\n"
+      << "DO YOU WANNA CONTINUE (Y/N): ";
     std::cin >> optionStr;
     if (optionStr != "Y" && optionStr != "y") break;
     bool success = EmailProgramObject.SMTPLiveTester();

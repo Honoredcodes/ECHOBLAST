@@ -21,7 +21,7 @@ private:
 public:
     MailDataSet SMTPVectorObject, NameVectorObject, SubjectVectorObject;
     MailDataSet::SMTPAttribute SMTPAttributeObject;
-    std::string EmailSenderPrograms = "Main Directory";
+    std::string ParentEmailSenderDirectory = "Main Directory";
 
     EmailSenderProgram();
     ~EmailSenderProgram() = default;
@@ -38,7 +38,7 @@ public:
     std::string DuplicateRemoval = "Duplicate Remover";
 
 
-    bool PrepareEmailSenderDirectories();
+    bool PrepareEmailSenderDirectories(const std::string type);
     bool PrepareSMTPLiveTesterDirectories();
     bool PrepareEmailExtractorDirectories();
     bool PrepareDuplicateDirectories();
