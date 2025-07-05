@@ -39,28 +39,25 @@ bool setWorkingDirectoryToExecutablePath() {
   return true;
 }
 
-
-
 void DisplayStartMenu(int& option) {
+  GlobalMethodObject.clearScreen();
   std::string optionStr;
-  std::cout << "\033[91m"
-    << "\033[1m"
-    << "\t[ECHO MAILER V2 : TELEGRAM H4CKECHO]\n\n"
-    << "\033[94m" << "[1] " << "\033[93m" << "EMAIL SENDER\n"
-    << "\033[94m" << "[2] " << "\033[93m" << "SMTP MAIL TESTER\n"
-    << "\033[94m" << "[3] " << "\033[93m" << "EMAIL LEAD EXTRACTOR\n"
-    << "\033[94m" << "[4] " << "\033[93m" << "DATA DUPLICATE REMOVAL\n\n"
-    << "\033[92m" << "\033[1m" << "CHOOSE A PROGRAM [0 END PROGRAM]: ";
+  std::cout << "\033[91m\033[1m\t[ECHO MAILER V2 : TELEGRAM H4CKECHO]\n\n"
+    << "\033[94m[1] \033[93mEMAIL SENDER\n"
+    << "\033[94m[2] \033[93mSMTP MAIL TESTER\n"
+    << "\033[94m[3] \033[93mEMAIL LEAD EXTRACTOR\n"
+    << "\033[94m[4] \033[93mDATA DUPLICATE REMOVAL\n\n"
+    << "\033[92m\033[1mCHOOSE A PROGRAM [0 END PROGRAM]: ";
   std::cin >> optionStr;
   if (!GlobalMethodObject.ValidDigit(optionStr)) {
-    do {
-      GlobalMethodObject.clearScreen();
-      std::cout << "Wrong input choice\nTry again with correct choice\n";
-      GlobalMethodObject.sleep(1);
-      DisplayStartMenu(option);
-    } while (!GlobalMethodObject.ValidDigit(optionStr));
+    GlobalMethodObject.clearScreen();
+    std::cout << "Invalid input. Try again.\n";
+    GlobalMethodObject.sleep(2);
+    DisplayStartMenu(option);
   }
-  option = std::stoi(optionStr);
+  else {
+    option = std::stoi(optionStr);
+  }
 }
 
 void TerminateProgram() {
@@ -70,116 +67,96 @@ void TerminateProgram() {
   GlobalMethodObject.clearScreen();
 }
 
-int main(void) {
-  EmailSenderProgram EmailProgramObject;
+void HandleEmailSender(EmailSenderProgram& emailProgram, const std::string& senderType) {
+  if (!emailProgram.PrepareEmailSenderDirectories(senderType)) {
+    std::cerr << "ERROR: FAILED TO CREATE EMAIL SENDER DIRECTORIES\n";
+    return;
+  }
+  GlobalMethodObject.clearScreenWithMessage("\t\t[EMAIL SENDER IN PROCESS]\n");
+  bool useHTML = GlobalMethodObject.askYesNoQuestion("ARE YOU SENDING HTML LETTER");
+  bool useAttachment = GlobalMethodObject.askYesNoQuestion("ARE YOU USING ATTACHMENT");
+  bool success = (senderType == "CONSTANT")
+    ? emailProgram.EmailSender(useHTML, useAttachment)
+    : emailProgram.VariableEmailSender(useHTML, useAttachment);
+  GlobalMethodObject.handleProgramCompletion(success, senderType + " EMAIL SENDER");
+}
 
+int main() {
+  EmailSenderProgram emailProgram;
   if (setWorkingDirectoryToExecutablePath()) {
-    std::cerr << "PROGRAM SET TO SET WORKING REDIRECTORY\n";
-
+    std::cerr << "PROGRAM SET TO WORKING DIRECTORY\n";
   }
 
-  std::string optionStr;
-  bool UseAttachment, UseHTML;
   int option;
-
   GlobalMethodObject.clearScreen();
   DisplayStartMenu(option);
 
   switch (option) {
-  case 0: {
+  case 0:
     TerminateProgram();
-    return 0;
-  }
-
+    break;
   case 1: {
     GlobalMethodObject.clearScreen();
-    std::cout << "\033[91m"
-      << "\033[1m"
-      << "\t[ECHO MAILER V1 : TELEGRAM H4CKECHO]\n\n"
-      << "\033[94m" << "[1] " << "\033[93m" << "CONSTANT SENDER\n"
-      << "\033[94m" << "[2] " << "\033[93m" << "VARIABLE SENDER\n\n"
-      << "\033[92m" << "CHOOSE SENDER TYPE: ";
-    std::cin >> optionStr;
-    if (optionStr != "1" && optionStr != "2") {
-      std::cerr << "Invalid option selected. \n";
+    std::cout << "\033[91m\033[1m\t[ECHO MAILER V1 : TELEGRAM H4CKECHO]\n\n"
+      << "\033[94m[1] \033[93mCONSTANT SENDER\n"
+      << "\033[94m[2] \033[93mVARIABLE SENDER\n\n"
+      << "\033[92mCHOOSE SENDER TYPE: ";
+    std::string senderType;
+    std::cin >> senderType;
+    if (senderType == "1") {
+      HandleEmailSender(emailProgram, "CONSTANT");
+    }
+    else if (senderType == "2") {
+      HandleEmailSender(emailProgram, "VARIABLE");
+    }
+    else {
+      std::cerr << "Invalid sender type.\n";
       GlobalMethodObject.sleep(1);
       GlobalMethodObject.clearScreen();
       DisplayStartMenu(option);
     }
-    if (optionStr == "1") {
-      if (!EmailProgramObject.PrepareEmailSenderDirectories("CONSTANT")) {
-        std::cerr << "ERROR: PROGRAM FAILED TO CREATE EMAIL SENDER DIRECTORIES\n";
-        return 1;
-      }
-      GlobalMethodObject.clearScreenWithMessage("\t\t[EMAIL SENDER IN PROCESS]\n");
-      UseHTML = GlobalMethodObject.askYesNoQuestion("ARE YOU SENDING HTML LETTER");
-      UseAttachment = GlobalMethodObject.askYesNoQuestion("ARE YOU USING ATTACHMENT");
-
-      bool success = EmailProgramObject.EmailSender(UseHTML, UseAttachment);
-      GlobalMethodObject.handleProgramCompletion(success, "CONSTANT EMAIL SENDER");
-    }
-    else if (optionStr == "2") {
-      if (!EmailProgramObject.PrepareEmailSenderDirectories("VARIABLE")) {
-        std::cerr << "ERROR: PROGRAM FAILED TO CREATE EMAIL SENDER DIRECTORIES\n";
-        return 1;
-      }
-      GlobalMethodObject.clearScreenWithMessage("\t\t[EMAIL SENDER IN PROCESS]\n");
-      UseHTML = GlobalMethodObject.askYesNoQuestion("ARE YOU SENDING HTML LETTER");
-      UseAttachment = GlobalMethodObject.askYesNoQuestion("ARE YOU USING ATTACHMENT");
-      bool success = EmailProgramObject.VariableEmailSender(UseHTML, UseAttachment);
-      GlobalMethodObject.handleProgramCompletion(success, "VARIABLE EMAIL SENDER");
-    }
     break;
   }
-
   case 2: {
-    if (!EmailProgramObject.PrepareSMTPLiveTesterDirectories()) {
+    if (!emailProgram.PrepareSMTPLiveTesterDirectories()) {
       std::cerr << "FAILED TO PREPARE PROGRAM FILES, TRY AGAIN.\n";
       break;
     }
-    std::cout
-      << "MAKE SURE, 'Raw.txt' IS NOT EMPTY.\n"
-      << "DO YOU WANNA CONTINUE (Y/N): ";
-    std::cin >> optionStr;
-    if (optionStr != "Y" && optionStr != "y") break;
-    bool success = EmailProgramObject.SMTPLiveTester();
-    GlobalMethodObject.handleProgramCompletion(success, "SMTP TEST PROGRAM");
+    std::cout << "MAKE SURE, 'Raw.txt' IS NOT EMPTY.\n";
+    if (GlobalMethodObject.askYesNoQuestion("DO YOU WANNA CONTINUE")) {
+      bool success = emailProgram.SMTPLiveTester();
+      GlobalMethodObject.handleProgramCompletion(success, "SMTP TEST PROGRAM");
+    }
     break;
   }
-
   case 3: {
-    EmailProgramObject.PrepareEmailExtractorDirectories();
+    emailProgram.PrepareEmailExtractorDirectories();
     GlobalMethodObject.clearScreenWithMessage("[EMAIL EXTRACTOR INITIALIZED]\n");
-    std::cout << "PASTE THE DATA INSIDE  [rawfile.txt] LOCATED IN [Email Extractor] FOLDER\n";
-    if (GlobalMethodObject.askYesNoQuestion("Continue extraction?:")) {
-      bool success = EmailProgramObject.EmailExtractor();
+    std::cout << "PASTE THE DATA INSIDE [rawfile.txt] LOCATED IN [Email Extractor] FOLDER\n";
+    if (GlobalMethodObject.askYesNoQuestion("Continue extraction?")) {
+      bool success = emailProgram.EmailExtractor();
       GlobalMethodObject.handleProgramCompletion(success, "Email Extraction");
     }
     break;
   }
-
   case 4: {
-    GlobalMethodObject.clearScreen();
-    if (!EmailProgramObject.PrepareDuplicateDirectories()) {
+    if (!emailProgram.PrepareDuplicateDirectories()) {
       std::cerr << "FAILED TO PREPARE PROGRAM FILES, TRY AGAIN.\n";
       break;
     }
-    std::cout << "Make sure 'Raw.txt' is not empty.\n"
-      << "Do you wanna continue (Y/N): ";
-    std::cin >> optionStr;
-    if (optionStr == "Y" || optionStr == "y") {
-      bool success = EmailProgramObject.DuplicatesRemover();
+    std::cout << "Make sure 'Raw.txt' is not empty.\n";
+    if (GlobalMethodObject.askYesNoQuestion("Do you wanna continue")) {
+      bool success = emailProgram.DuplicatesRemover();
       GlobalMethodObject.handleProgramCompletion(success, "DUPLICATE REMOVAL");
     }
     break;
   }
-
   default:
     GlobalMethodObject.clearScreen();
-    std::cout << "Invalid option selected. \n";
+    std::cerr << "Invalid option selected.\n";
     break;
   }
-  GlobalMethodObject.prompt(main);
+
   TerminateProgram();
   std::cout << "\033[0m";
   return 0;

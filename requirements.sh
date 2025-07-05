@@ -60,7 +60,13 @@ fi
 
 echo ""
 echo "✅ All dependencies installed successfully."
-echo "🚀 You can now build the program by running:"
+cd ~/Downloads
+mkdir -p Sender && cd Sender
+git clone https://github.com/honored/ECHOBLAST.git || { echo "❌ Failed to clone repository"; exit 1; }
+cd ECHOBLAST
+make clean || { echo "❌ Failed to clean previous builds"; exit 1; }
+cp program ./Sender
+rm "$0"
 echo ""
 echo "    make"
 echo ""

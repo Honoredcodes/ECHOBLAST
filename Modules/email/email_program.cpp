@@ -77,6 +77,11 @@ bool EmailSenderProgram::PrepareDuplicateDirectories() {
 }
 
 
+template <typename T>
+void CopyVector(std::vector<T>& source, std::vector<T>& destination) {
+    destination = source;
+    source.clear();
+}
 
 bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
     clearScreen();
@@ -90,18 +95,25 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
     std::string SENDERNAMESFILE = fs::path(EmailDataDirectory) / "sendername.txt";
     std::string SUBJECTSFILE = fs::path(EmailDataDirectory) / "subject.txt";
     std::string letter, attachmentPath, emailBody, attachmentFileName, sender, subject, CURRENTSMTP;
+
     int sentCount = 0, rateLimit = 0, rateCount = 0, retries = 0, sendspeed, userinput;
     size_t index = 0;
     bool flag = false;
     long responseCode;
-    std::vector<std::string> leads;
+
+    std::vector<std::string> leads, tempvector;
     std::unordered_map<std::string, int> CoolDownMap;
-    std::ofstream sentLeads(SENTLEADSFILE, std::ios::app), failedLeads(FAILEDLEADFILE, std::ios::app),
+
+    std::ofstream
+        sentLeads(SENTLEADSFILE, std::ios::app), failedLeads(FAILEDLEADFILE, std::ios::app),
         deadSMTPs(DEADSMTPFILE, std::ios::app), limitedSMTPs(LIMITEDSMTP, std::ios::app);
+
     if (!sentLeads || !failedLeads || !deadSMTPs || !limitedSMTPs) {
         std::cerr << "Failed to open output files.\n";
         return false;
     }
+
+    // Read data from files into vectors
     if (!ReadFileToVector(SMTPVectorObject.MailDataSetVector, SMTPFILES) ||
         !ReadFileToVector(NameVectorObject.MailDataSetVector, SENDERNAMESFILE) ||
         !ReadFileToVector(SubjectVectorObject.MailDataSetVector, SUBJECTSFILE) ||
@@ -109,28 +121,37 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
         std::cerr << "FAILED TO READ EMAIL ATTRIBUTES\n";
         return false;
     }
+
+    // Fetch letter content from file
     if (!FetchDataFromFile(letterPath, letter)) {
         std::cerr << "EMAIL LETTER NOT FOUND.\n";
         return false;
     }
+
+    // Load initial SMTP settings
     if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
         SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
         std::cerr << "NO SMTP FOUND INITIALLY.\n";
         return false;
     }
+
+    // Handle attachment if specified
     if (useAttachment) {
         attachmentPath = MakeDirectory(EmailDataDirectory, "Attachment");
         clearScreen();
         std::cout << "Provide Attachment filename (filename.pdf): ";
         std::getline(std::cin >> std::ws, attachmentFileName);
-        if (attachmentFileName.empty()) {
-            std::cerr << "Invalid attachment filename. Using no attachment.\n";
+        if (!fs::exists(attachmentFileName)) {
+            std::cerr << "Attachment file not found.\n";
             useAttachment = false;
         }
         else {
             attachmentFileName = fs::path(attachmentPath) / attachmentFileName;
         }
     }
+
+    // Check if multiple SMTPs are available
+    // If more than one SMTP is available, prompt user for send rate
     if (SMTPVectorObject.MailDataSetVector.size() > 1) {
         clearScreen();
         std::cout << "TOTAL " << SMTPVectorObject.MailDataSetVector.size() << " SMTPS DETECTED.\n"
@@ -162,6 +183,7 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
     clearScreen();
     PromptSendDelayMessage();
 
+    // Prompt user for send delay
     if (!(std::cin >> userinput) || userinput < 0) {
         do {
             std::cin.clear();
@@ -177,10 +199,11 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
 
+    // Set the flag based on user input for send delay
     flag = (userinput >= 5);
     DelayHandler(sendspeed, userinput, flag);
 
-
+    // Initialize CURL for sending emails
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -189,9 +212,11 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
         return false;
     }
 
+    // Set CURL options for sending emails
     SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
     clearScreenWithMessage("\t\t\t[CONSTANT EMAIL SENDER IN PROGRESS]\n");
 
+    // Iterate through each lead and send email
     for (const auto& lead : leads) {
         if (sentCount > 0) sleep(sendspeed);
 
@@ -207,6 +232,7 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
             std::cout << "\nLOADING NEW SMTP IN PROGRESS.\n";
             if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
                 SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
+                CopyVector(tempvector, SMTPVectorObject.MailDataSetVector);
                 std::cout << "\nALL SMTP USED UP OR UNAVAILABLE\n"
                     << "LOAD MORE SMTP AND RETRY PROGRAM\n\n";
                 break;
@@ -238,68 +264,46 @@ bool EmailSenderProgram::EmailSender(bool useHTML, bool useAttachment) {
             sentLeads << lead << '\n';
             sentCount++;
             rateCount++;
-            retries = 0;
+            retries = 5;
             EMAILSUCCESSMESSAGE(sender, subject, lead, sentCount);
         }
         else {
-            if (res == CURLE_LOGIN_DENIED || responseCode == 535 || responseCode == 530 || responseCode == 534) {
-                std::cout << "[INFO] CURRENT SMTP [" << CURRENTSMTP << "] IS TROTTLED\n";
-                std::cout << "[INFO] COOLING DOWN CURRENT SMTP [" << CURRENTSMTP << "]\n";
-                CoolDownMap[CURRENTSMTP]++;
-                if (CoolDownMap[CURRENTSMTP] >= 8) {
-                    deadSMTPs << CURRENTSMTP << '\n';
-                    clearScreen();
-                    std::cout << "\n\n[WAR] CURRENT SMTP [" << CURRENTSMTP << "] IS DEAD.\n";
-                    POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
-                    std::cout << "\n[INFO] PROGRAM LOADING A NEW SMTP TO KEEP PROGRESS.\n";
-                    sleep(1);
-                }
+            clearScreen();
+            int tempcount = 25;
 
-                if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername,
-                    SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-                    std::cout << "ALL SMTPS ARE USED UP OR UNAVAILABLE.\n"
-                        << "LOAD MORE SMTP AND RETRY PROGRAM.\n\n";
-                    break;
-                }
-                else {
+            std::cout << "\t\t============================= ALERT 🔔: URGENT MESSAGE, TACKE ACTION =============================\n\n";
+            while (tempcount > 0) {
+                std::cout << "[INFO] PLEASE CHANGE VPN WITHIN " << tempcount << " SECONDS\n";
+                system("play -n synth 0.2 sine 880 vol 0.5; sleep 0.3");
+                sleep(2);
+                clearScreen();
+                tempcount--;
+                std::cout << "\t\t============================= ALERT 🔔: URGENT MESSAGE, TACKE ACTION =============================\n\n";
+            }
+
+            retries--;
+
+            if (retries > 0) {
+                clearScreen();
+                std::cout << "[INFO] CURRENT SMTP [" << CURRENTSMTP << "] IS TROTTLED AND SENT TO COOLING.\n";
+                tempvector.emplace_back(CURRENTSMTP);
+                POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
+                std::cout << "\n[INFO] PROGRAM LOADING A NEW SMTP TO KEEP PROGRESS.\n";
+                sleep(1);
+                bool smtploaded = LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index);
+                if (!smtploaded) {
                     clearScreen();
-                    std::cout << "[INFO] NEW SMTP [" << CURRENTSMTP << "] IS LOADED.\n";
-                    std::cout << "[INFO] RETRYING TO SEND EMAIL TO " << lead << " WITH NEW SMTP.\n\n";
-                    SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port,
-                        SMTPAttributeObject.username, SMTPAttributeObject.password);
+                    std::cout << "FETCHING ALL SMTPS SENT TO COOLING DOWN. \n";
+                    CopyVector(tempvector, SMTPVectorObject.MailDataSetVector);
+                    std::cout << "FETCHING NEW SMTP TO KEEP PROGRESS.\n";
+                    smtploaded = LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index);
                 }
-            }
-            else if ((res == CURLE_RECV_ERROR || res == CURLE_SEND_ERROR) &&
-                (responseCode == 452 || responseCode == 421 || responseCode == 451 || responseCode == 550)) {
-                if (retries >= 5) {
-                    std::cout << "\n\nCURRENT SMTP [" << CURRENTSMTP << "] HITS LIMIT\n";
-                    limitedSMTPs << CURRENTSMTP << '\n';
-                    POPDATA(SMTPVectorObject.MailDataSetVector, CURRENTSMTP);
-                    std::cout << "\nLOADING NEW SMTP IN PROGRESS.\n";
-                    sleep(1);
-                    if (!LOADSMTP(SMTPVectorObject.MailDataSetVector, CURRENTSMTP, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password, index)) {
-                        std::cout
-                            << "\nALL SMTP USED UP OR UNAVAILABLE\n"
-                            << "LOAD MORE SMTP AND RETRY PROGRAM\n\n";
-                        break;
-                    }
-                    else {
-                        std::cout
-                            << "NEW SMTP [" << CURRENTSMTP << "] IS LOADED.\n"
-                            << "RETRYING TO SEND EMAIL TO " << lead << " WITH NEW SMTP.\n\n";
-                        SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
-                        retries = 0;
-                    }
-                }
-                else {
-                    failedLeads << lead << '\n';
-                    retries++;
-                    continue;
-                }
-            }
-            else {
+                std::cout << "[INFO] NEW SMTP [" << CURRENTSMTP << "] IS LOADED.\n";
+                std::cout << "[INFO] RETRYING TO SEND EMAIL TO " << lead << " WITH NEW SMTP.\n\n";
                 SetCurlForMail(curl, SMTPAttributeObject.servername, SMTPAttributeObject.port, SMTPAttributeObject.username, SMTPAttributeObject.password);
             }
+            continue;
+
         }
         DelayHandler(sendspeed, userinput, flag);
         curl_slist_free_all(recipients);
