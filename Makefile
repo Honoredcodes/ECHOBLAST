@@ -26,7 +26,7 @@ else ifeq ($(UNAME_S),Linux)
 endif
 
 all:
-	@echo "please wait, while the program is being compiled..."
+	@echo "Please wait, while the program is being compiled..."
 	@$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
 
 clean:
