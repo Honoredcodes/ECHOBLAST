@@ -64,6 +64,7 @@
     "iomanip": "cpp",
     "regex": "cpp",
     "filesystem": "cpp",
-    "functional": "cpp"
+    "functional": "cpp",
+    "thread": "cpp"
   }
 }

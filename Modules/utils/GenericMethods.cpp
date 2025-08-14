@@ -114,7 +114,7 @@ bool GlobalMethodClass::FetchDataFromFile(const std::string FilePath, std::strin
     return true;
 }
 
-void GlobalMethodClass::DATACLEANUP(const std::string& sourcePath, const std::vector<std::string>& excludePaths) {
+void GlobalMethodClass::DATACLEANUP(const std::string header, const std::string& sourcePath, const std::vector<std::string>& excludePaths) {
     std::ifstream sourceFile(sourcePath);
     if (!sourceFile) {
         std::cerr << "[ERR]: CLEAN UP CANNOT READ SOURCE FILE" << std::endl;
@@ -168,7 +168,7 @@ void GlobalMethodClass::DATACLEANUP(const std::string& sourcePath, const std::ve
         outFile << entry << '\n';
     }
 
-    std::cout << "CLEAN UP COMPLETED. " << entries.size() << " REMAINING DATA RETURNED SOURCE FILE" << std::endl;
+    std::cout << header << "CLEAN UP COMPLETED. " << entries.size() << " REMAINING DATA RETURNED SOURCE FILE" << std::endl;
 }
 // void GlobalMethodClass::DATACLEANUP(const std::string& sourcePath, const std::vector<std::string>& excludePaths) {
 //     std::ifstream sourceFile(sourcePath);
@@ -669,7 +669,7 @@ void GlobalMethodClass::prompt(std::function<int()> main) {
 // This function shuffles and generates a random delay from a predefined set of delays, 
 // ensure randomness and returns the next delay in the sequence.
 int GlobalMethodClass::GenerateDelay() {
-    static int delays[] = { 15, 18, 20, 25, 30, 35, 42, 38 };
+    static int delays[] = { 2, 3, 4, 5 };
     static const int delaysCount = sizeof(delays) / sizeof(delays[0]);
     static int currentIndex = delaysCount;
     static std::mt19937 rng(std::random_device{}());
@@ -687,8 +687,8 @@ void GlobalMethodClass::DelayHandler(int& sendspeed, int res, bool flag) {
 
 void GlobalMethodClass::PromptSendDelayMessage() {
     std::cout << "NOTE: BLAST DELAY PRESERVES SMTP LIFE.\n"
-        << "NOTE: SYSTEM DEFINED DELAY RANGE 10-15 SECONDS SIMULTANEOUSLY.\n"
+        << "NOTE: SYSTEM DEFINED DELAY RANGE 1-5 SECONDS SIMULTANEOUSLY.\n"
         << "NOTE: IF CUSTOM DELAY FALLS BELOW 5 SECONDS, PROGRAM FALLS BACK TO SYSTEM DEFINED DELAY.\n\n"
-        << "SET CUSTOM DELAY VALUE (MINIMUM 5)\n"
+        // << "SET CUSTOM DELAY VALUE (MINIMUM 5)\n"
         << "ENTER 0 FOR SYSTEM DEFAULT DELAY: ";
 }

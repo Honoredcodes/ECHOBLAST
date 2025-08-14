@@ -28,3 +28,17 @@ void SetCurlForMail(CURL*& curl, std::string servername, int port, std::string u
     curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
     // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); // for debugging
 }
+
+// Function to perform the email sending operation using CURL
+void PerformCurlSend(CURL* curl, CURLcode& res, const std::string& sender, const std::string& lead, void* emailBody, curl_read_callback readCallback, long& responseCode) {
+    struct curl_slist* recipients = curl_slist_append(nullptr, lead.c_str());
+    curl_easy_setopt(curl, CURLOPT_MAIL_FROM, sender.c_str());
+    curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
+    curl_easy_setopt(curl, CURLOPT_READDATA, emailBody);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, readCallback);
+    res = curl_easy_perform(curl);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
+    curl_slist_free_all(recipients);
+}

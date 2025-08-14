@@ -93,7 +93,6 @@ int main() {
 
   switch (option) {
   case 0:
-    TerminateProgram();
     break;
   case 1: {
     GlobalMethodObject.clearScreen();
@@ -156,7 +155,7 @@ int main() {
     std::cerr << "Invalid option selected.\n";
     break;
   }
-
+  GlobalMethodObject.prompt(main);
   TerminateProgram();
   std::cout << "\033[0m";
   return 0;
