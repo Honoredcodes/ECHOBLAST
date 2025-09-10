@@ -9,6 +9,8 @@
 #include <curl/curl.h>
 #include <sstream>
 #include <regex>
+#include <mutex>
+#include <future>
 #include <unordered_set>
 #include <set>
 #include <thread>
@@ -17,10 +19,51 @@
 #include "../services/curl_utils.h"
 
 namespace fs = std::filesystem;
+std::string CHOOSEDIRECTORY() {
+    GlobalMethodClass func;
+    std::string res, path;
+    bool validChoice = false;
+
+    do {
+        func.clearScreen();
+        std::cout << "\033[91m\033[1m\tCHOOSE PROGRAM ROOT DIRECTORY\n\n"
+            << "\033[94m[1] \033[93mDESKTOP\n"
+            << "\033[94m[2] \033[93mDOWNLOADS\n"
+            << "\033[94m[3] \033[93mDOCUMENTS\n"
+            << "\033[92m\033[1mCHOOSE A DIRECTORY [0 END PROGRAM]: ";
+        std::cin >> res;
+        if (res == "0") {
+            func.clearScreen();
+            std::exit(0);
+        }
+        if (res == "1") {
+            path = func.MakeRootDirectory("Desktop");
+            validChoice = true;
+            func.sleep(3);
+        }
+        else if (res == "2") {
+            path = func.MakeRootDirectory("Downloads");
+            validChoice = true;
+            func.sleep(3);
+        }
+        else if (res == "3") {
+            path = func.MakeRootDirectory("Documents");
+            validChoice = true;
+            func.sleep(3);
+        }
+        else {
+            std::cout << "Invalid choice, please try again.\n";
+        }
+
+    } while (!validChoice);
+
+    return path;
+}
 
 // Constructor implementation
 EmailSenderProgram::EmailSenderProgram() {
-    ParentEmailSenderDirectory = MakeDirectory("", ParentEmailSenderDirectory);
+    ParentEmailSenderDirectory = CHOOSEDIRECTORY();
+    // ParentEmailSenderDirectory = MakeDirectory("", ParentEmailSenderDirectory);
 }
 
 // PrepareEmailSenderDirectories implementation

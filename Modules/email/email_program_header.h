@@ -21,7 +21,7 @@ private:
 public:
     MailDataSet SMTPVectorObject, NameVectorObject, SubjectVectorObject;
     MailDataSet::SMTPAttribute SMTPAttributeObject;
-    std::string ParentEmailSenderDirectory = "Main Directory";
+    std::string ParentEmailSenderDirectory = "Main";
 
     EmailSenderProgram();
     ~EmailSenderProgram() = default;

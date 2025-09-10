@@ -65,6 +65,7 @@
     "regex": "cpp",
     "filesystem": "cpp",
     "functional": "cpp",
-    "thread": "cpp"
+    "thread": "cpp",
+    "format": "cpp"
   }
 }

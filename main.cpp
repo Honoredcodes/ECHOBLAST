@@ -39,6 +39,7 @@ bool setWorkingDirectoryToExecutablePath() {
   return true;
 }
 
+
 void DisplayStartMenu(int& option) {
   GlobalMethodObject.clearScreen();
   std::string optionStr;
@@ -83,9 +84,6 @@ void HandleEmailSender(EmailSenderProgram& emailProgram, const std::string& send
 
 int main() {
   EmailSenderProgram emailProgram;
-  if (setWorkingDirectoryToExecutablePath()) {
-    std::cerr << "PROGRAM SET TO WORKING DIRECTORY\n";
-  }
 
   int option;
   GlobalMethodObject.clearScreen();

@@ -28,6 +28,7 @@ namespace fs = std::filesystem;
 
 // 1. DIRECTORY AND FILE OPERATIONS
 std::string GlobalMethodClass::MakeDirectory(const std::string& path, const std::string& folderName) {
+
     static std::set<std::string> createdFolders;
     fs::path fullPath = (path.empty()) ? fs::current_path() / folderName : fs::path(path) / folderName;
     if (createdFolders.count(fullPath.string()) && fs::exists(fullPath)) return fullPath.string();
@@ -41,6 +42,44 @@ std::string GlobalMethodClass::MakeDirectory(const std::string& path, const std:
     }
     return "";
 }
+
+std::string GlobalMethodClass::MakeRootDirectory(const std::string& path) {
+    // Get the user's home directory
+    const char* home = std::getenv("HOME");   // works on Linux/macOS
+#ifdef _WIN32
+    if (!home) home = std::getenv("USERPROFILE"); // Windows fallback
+#endif
+
+    fs::path target;
+    if (path == "Desktop") {
+        target = fs::path(home) / "Desktop" / "ECHOBLAST";
+    }
+    else if (path == "Downloads") {
+        target = fs::path(home) / "Downloads" / "ECHOBLAST";
+    }
+    else if (path == "Documents") {
+        target = fs::path(home) / "Documents" / "ECHOBLAST";
+    }
+
+    try {
+        if (!fs::exists(target)) {
+            fs::create_directories(target);
+            clearScreen();
+            std::cout << "\033[92m\033[1mMain Directory is successfully created in " << path << std::endl;
+        }
+        else {
+            clearScreen();
+            std::cout << path << "directory chosen already exist.\n";
+        }
+    }
+    catch (const fs::filesystem_error& e) {
+        target = "";
+        std::cout << "Program failed contact ECHOVSL\n";
+        exit(1);
+    }
+    return target;
+}
+
 
 bool GlobalMethodClass::CreateProgramDirectories(std::string BaseProgramDirectory, std::string& ChildProgramDirectory, const std::string type, std::string& ProgramAttributeDirectory, std::string& Junks) {
     ChildProgramDirectory = GlobalMethodClass::MakeDirectory(BaseProgramDirectory, ChildProgramDirectory);
